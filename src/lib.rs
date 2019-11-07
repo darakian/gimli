@@ -10,7 +10,7 @@ pub fn gimli(state: &mut [u32; 12]){ //12*32bit = 384bit
   let mut y: u32 = 0;
   let mut z: u32 = 0;
 
-  for round in (1..=24).rev()
+  for round in (0..24).rev()
   {
     for column in 0..4
     {
@@ -49,7 +49,6 @@ pub fn gimli(state: &mut [u32; 12]){ //12*32bit = 384bit
 
 static rateInBytes: u64 = 16;
 
-//fn Gimli_hash(const u8 *input, u64 inputByteLen, u8 *output, u64 outputByteLen){
 pub fn Gimli_hash(input: &[u8], mut inputByteLen: u64, mut outputByteLen: u64) -> Vec<u8>{
     let mut output: Vec<u8> = Vec::with_capacity(outputByteLen as usize);
     let mut state: [u32; 12] = [0; 12];
@@ -76,10 +75,13 @@ pub fn Gimli_hash(input: &[u8], mut inputByteLen: u64, mut outputByteLen: u64) -
 
     // === Do the padding and switch to the squeezing phase ===
     state_8[blockSize as usize] ^= 0x1F;
+    println!(">> {:x?}", state_8);
     // Add the second bit of padding
     state_8[(rateInBytes-1) as usize] ^= 0x80;
+    println!(">> {:x?}", state_8);
     // Switch to the squeezing phase
     gimli(&mut state);
+    println!(">> {:x?}", state_8);
 
     // === Squeeze out all the output blocks ===
     while outputByteLen > 0 {
