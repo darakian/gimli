@@ -65,8 +65,6 @@ pub fn Gimli_hash(mut input: &[u8], mut inputByteLen: u64, mut outputByteLen: u6
             state_8[i as usize] ^= input[i as usize];
         }
         input = &input[blockSize as usize..];
-        println!("input buffer>> {:x?}", input);
-        println!("input buffer len:{:?}", input.len());
         inputByteLen -= blockSize;
 
         if (blockSize == rateInBytes) {
@@ -77,13 +75,10 @@ pub fn Gimli_hash(mut input: &[u8], mut inputByteLen: u64, mut outputByteLen: u6
 
     // === Do the padding and switch to the squeezing phase ===
     state_8[blockSize as usize] ^= 0x1F;
-    println!(">> {:x?}", state_8);
     // Add the second bit of padding
     state_8[(rateInBytes-1) as usize] ^= 0x80;
-    println!(">> {:x?}", state_8);
     // Switch to the squeezing phase
     gimli(&mut state);
-    println!(">> {:x?}", state_8);
 
     // === Squeeze out all the output blocks ===
     while outputByteLen > 0 {
