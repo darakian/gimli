@@ -1,5 +1,10 @@
 use std::cmp::min;
 
+fn rotate(x: u32, bits: usize) -> u32{
+  if (bits == 0) {return x};
+  return (x << bits) | (x >> (32 - bits));
+}
+
 pub fn gimli(state: &mut [u32; 12]){ //12*32bit = 384bit
   let mut x: u32 = 0;
   let mut y: u32 = 0;
@@ -7,15 +12,15 @@ pub fn gimli(state: &mut [u32; 12]){ //12*32bit = 384bit
 
   for round in (1..=24).rev()
   {
-    for row in 0..=3
+    for column in 0..=3
     {
-      x = state[row].rotate_left(24);
-      y = state[row].rotate_left(9);
-      z = state[8 + row];
+      x = rotate(state[    column], 24);
+      y = rotate(state[4 + column],  9);
+      z =        state[8 + column];
 
-      state[8 + row] = x ^ (z << 1) ^ ((y&z) << 2);
-      state[4 + row] = y ^ x        ^ ((x|z) << 1);
-      state[row]     = z ^ y        ^ ((x&y) << 3);
+      state[8 + column] = x ^ (z << 1) ^ ((y&z) << 2);
+      state[4 + column] = y ^ x        ^ ((x|z) << 1);
+      state[column]     = z ^ y        ^ ((x&y) << 3);
     }
 
     if ((round & 3) == 0) { // small swap: pattern s...s...s... etc.
