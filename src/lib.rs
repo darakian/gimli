@@ -49,7 +49,7 @@ pub fn gimli(state: &mut [u32; 12]){ //12*32bit = 384bit
 
 static rateInBytes: u64 = 16;
 
-pub fn Gimli_hash(input: &[u8], mut inputByteLen: u64, mut outputByteLen: u64) -> Vec<u8>{
+pub fn Gimli_hash(mut input: &[u8], mut inputByteLen: u64, mut outputByteLen: u64) -> Vec<u8>{
     let mut output: Vec<u8> = Vec::with_capacity(outputByteLen as usize);
     let mut state: [u32; 12] = [0; 12];
     let state_ptr = state.as_ptr() as *mut u8;
@@ -64,7 +64,9 @@ pub fn Gimli_hash(input: &[u8], mut inputByteLen: u64, mut outputByteLen: u64) -
         for i in 0..blockSize{
             state_8[i as usize] ^= input[i as usize];
         }
-        let input = &input[blockSize as usize..];
+        input = &input[blockSize as usize..];
+        println!("input buffer>> {:x?}", input);
+        println!("input buffer len:{:?}", input.len());
         inputByteLen -= blockSize;
 
         if (blockSize == rateInBytes) {
