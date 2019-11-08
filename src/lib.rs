@@ -12,15 +12,15 @@ pub fn gimli(state: &mut [u32; 12]){ //12*32bit = 384bit
 
   for round in (0..24).rev()
   {
-    for column in 0..4
+    for row in 0..4
     {
-      x = rotate(state[    column], 24);
-      y = rotate(state[4 + column],  9);
-      z =        state[8 + column];
+      x = rotate(state[    row], 24);
+      y = rotate(state[4 + row],  9);
+      z =        state[8 + row];
 
-      state[8 + column] = x ^ (z << 1) ^ ((y&z) << 2);
-      state[4 + column] = y ^ x        ^ ((x|z) << 1);
-      state[column]     = z ^ y        ^ ((x&y) << 3);
+      state[8 + row] = x ^ (z << 1) ^ ((y&z) << 2);
+      state[4 + row] = y ^ x        ^ ((x|z) << 1);
+      state[row]     = z ^ y        ^ ((x&y) << 3);
     }
 
     if ((round & 3) == 0) { // small swap: pattern s...s...s... etc.
