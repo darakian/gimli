@@ -92,6 +92,6 @@ pub fn Gimli_hash(mut input: &[u8], mut inputByteLen: u64, mut outputByteLen: u6
     return output
 }
 
-fn gimli_aead(message: Vec<u32>, associated_data: Vec<u32>, nonce: &[u8; 16], key: &[u8; 32]) -> Vec<u32>{
+fn gimli_aead_enc(message: Vec<u32>, associated_data: Vec<u32>, nonce: &[u8; 16], key: &[u8; 32]) -> Vec<u32>{
     Vec::new()
 }
