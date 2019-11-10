@@ -24,4 +24,8 @@ fn main() {
         opt.out_length);
     println!("result: {:x?}", result);
     println!("result length: {:?}", result.len());
+    println!("In c hexstring format");
+    for byte in result.iter(){
+        print!("{:02x?}", byte);
+    }
 }
