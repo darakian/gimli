@@ -92,6 +92,56 @@ pub fn Gimli_hash(mut input: &[u8], mut inputByteLen: u64, mut outputByteLen: u6
     return output
 }
 
-fn gimli_aead_enc(message: Vec<u8>, associated_data: Vec<u8>, nonce: &[u8; 16], key: &[u8; 32]) -> Vec<u8>{
-    Vec::new()
+fn gimli_aead_enc(mut message: &[u8],mut associated_data: &[u8], nonce: &[u8; 16], key: &[u8; 32]) -> Vec<u8>{
+    let mut output: Vec<u8> = Vec::new();
+    let mut state: [u32; 12] = [0; 12];
+    let state_ptr = state.as_ptr() as *mut u8;
+    let state_8 = unsafe {
+        std::slice::from_raw_parts_mut(state_ptr, 48)
+    };
+
+    // Init state with key and nonce plus first permute
+    state_8[..=16].clone_from_slice(nonce);
+    state_8[17..=48].clone_from_slice(key);
+    gimli(&mut state);
+
+    while associated_data.len() >= 16 {
+      for i in  0..16 {
+        state_8[i] ^= associated_data[i]
+      }
+      gimli(&mut state);
+      associated_data = &associated_data[16 as usize..];
+    }
+
+    for i in  0..associated_data.len() {
+      for i in  0..16 {
+        state_8[i] ^= associated_data[i]
+      }
+      state_8[associated_data.len() as usize] ^= 1;
+      state_8[47] ^= 1;
+      gimli(&mut state);
+    }
+
+    while message.len() >= 16 {
+      for i in 0..16 {
+        state_8[i] ^= message[i];
+        output.push(state_8[i]);
+      }
+      gimli(&mut state);
+      message = &message[16 as usize..];
+    }
+
+    for i in 0..message.len(){
+      state_8[i] ^= message[i];
+      output.push(state_8[i]);
+    }
+    message = &message[message.len() as usize..];
+    state_8[message.len() as usize] ^= 1;
+    state_8[47] ^= 1;
+    gimli(&mut state);
+
+    for i in 0..16 {
+      output.push(state_8[i]);
+    }
+    return output
 }
