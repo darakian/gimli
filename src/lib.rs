@@ -92,7 +92,7 @@ pub fn Gimli_hash(mut input: &[u8], mut inputByteLen: u64, mut outputByteLen: u6
   return output
 }
 
-fn gimli_aead_encrypt(mut message: &[u8],mut associated_data: &[u8], nonce: &[u8; 16], key: &[u8; 32]) -> (Vec<u8>, [u8; 16]){
+fn gimli_aead_encrypt(mut message: &[u8],mut associated_data: &[u8], nonce: &[u8; 16], key: &[u8; 32]) -> Vec<u8>{
   let mut output: Vec<u8> = Vec::new();
   let mut state: [u32; 12] = [0; 12];
   let state_ptr = state.as_ptr() as *mut u8;
@@ -144,14 +144,76 @@ fn gimli_aead_encrypt(mut message: &[u8],mut associated_data: &[u8], nonce: &[u8
     output.push(state_8[i]);
   }
 
-  gimli(&mut state);
-  let mut auth_tag: [u8; 16]= [0; 16];
-  auth_tag.clone_from_slice(&state_8[..16]);
-  return (output, auth_tag)
+  return output
 }
 
 
 fn gimli_aead_decrypt(mut message: &[u8], mut associated_data: &[u8], auth_tag: &[u8; 16], nonce: &[u8; 16], key: &[u8; 32]) -> Vec<u8> {
+  let mut output: Vec<u8> = Vec::new();
+  let mut state: [u32; 12] = [0; 12];
+  let state_ptr = state.as_ptr() as *mut u8;
+  let state_8 = unsafe {
+      std::slice::from_raw_parts_mut(state_ptr, 48)
+  };
+
+  // Init state with key and nonce plus first permute
+  state_8[..=16].clone_from_slice(nonce);
+  state_8[17..=48].clone_from_slice(key);
+  gimli(&mut state);
+
+
+  //C Code
+  uint8_t state[48];
+  uint32_t result;
+  unsigned long long i;
+  unsigned long long tlen;
+
+  if (clen < 16) return -1;
+  *mlen = tlen = clen - 16;
+
+  memcpy(state,npub,16);
+  memcpy(state+16,k,32);
+  gimli(state);
+
+  while (adlen >= 16) {
+    for (i = 0;i < 16;++i) state[i] ^= ad[i];
+    gimli(state);
+    ad += 16;
+    adlen -= 16;
+  }
+
+  for (i = 0;i < adlen;++i) state[i] ^= ad[i];
+  state[adlen] ^= 1;
+  state[47] ^= 1;
+  gimli(state);
+
+  while (tlen >= 16) {
+    for (i = 0;i < 16;++i) m[i] = state[i] ^ c[i];
+    for (i = 0;i < 16;++i) state[i] = c[i];
+    gimli(state);
+    c += 16;
+    m += 16;
+    tlen -= 16;
+  }
+
+  for (i = 0;i < tlen;++i) m[i] = state[i] ^ c[i];
+  for (i = 0;i < tlen;++i) state[i] = c[i];
+  c += tlen;
+  m += tlen;
+  state[tlen] ^= 1;
+  state[47] ^= 1;
+  gimli(state);
+
+  result = 0;
+  for (i = 0;i < 16;++i) result |= c[i] ^ state[i];
+  result -= 1;
+  result = ((int32_t) result) >> 16;
+
+  tlen = *mlen;
+  m -= tlen;
+  for (i = 0;i < tlen;++i) m[i] &= result;
+
+  return ~result;
 
   return Vec::new()
 }
