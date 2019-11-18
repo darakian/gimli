@@ -114,13 +114,11 @@ fn gimli_aead_encrypt(mut message: &[u8],mut associated_data: &[u8], nonce: &[u8
   }
 
   for i in  0..associated_data.len() {
-    for i in  0..16 {
-      state_8[i] ^= associated_data[i]
-    }
-    state_8[associated_data.len() as usize] ^= 1;
-    state_8[47] ^= 1;
-    gimli(&mut state);
+    state_8[i] ^= associated_data[i]
   }
+  state_8[associated_data.len() as usize] ^= 1;
+  state_8[47] ^= 1;
+  gimli(&mut state);
 
   while message.len() >= 16 {
     for i in 0..16 {
@@ -148,7 +146,10 @@ fn gimli_aead_encrypt(mut message: &[u8],mut associated_data: &[u8], nonce: &[u8
 }
 
 
-fn gimli_aead_decrypt(mut message: &[u8], mut associated_data: &[u8], auth_tag: &[u8; 16], nonce: &[u8; 16], key: &[u8; 32]) -> Vec<u8> {
+fn gimli_aead_decrypt(mut message: &[u8], mut associated_data: &[u8], auth_tag: &[u8; 16], nonce: &[u8; 16], key: &[u8; 32]) -> Result(Vec<u8>, Err) {
+  if message.len() < 16 {
+    return err;
+  }
   let mut output: Vec<u8> = Vec::new();
   let mut state: [u32; 12] = [0; 12];
   let state_ptr = state.as_ptr() as *mut u8;
@@ -161,26 +162,18 @@ fn gimli_aead_decrypt(mut message: &[u8], mut associated_data: &[u8], auth_tag: 
   state_8[17..=48].clone_from_slice(key);
   gimli(&mut state);
 
-
-  //C Code
-  uint8_t state[48];
-  uint32_t result;
-  unsigned long long i;
-  unsigned long long tlen;
-
-  if (clen < 16) return -1;
-  *mlen = tlen = clen - 16;
-
-  memcpy(state,npub,16);
-  memcpy(state+16,k,32);
-  gimli(state);
-
-  while (adlen >= 16) {
-    for (i = 0;i < 16;++i) state[i] ^= ad[i];
-    gimli(state);
-    ad += 16;
-    adlen -= 16;
+  while associated_data.len() >= 16 {
+    for i in  0..16 {
+      state_8[i] ^= associated_data[i]
+    }
+    gimli(&mut state);
+    associated_data = &associated_data[16 as usize..];
   }
+
+
+
+
+  
 
   for (i = 0;i < adlen;++i) state[i] ^= ad[i];
   state[adlen] ^= 1;
