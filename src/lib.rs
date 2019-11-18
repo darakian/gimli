@@ -162,23 +162,16 @@ fn gimli_aead_decrypt(mut message: &[u8], mut associated_data: &[u8], auth_tag: 
   state_8[17..=48].clone_from_slice(key);
   gimli(&mut state);
 
-  while associated_data.len() >= 16 {
-    for i in  0..16 {
-      state_8[i] ^= associated_data[i]
-    }
-    gimli(&mut state);
-    associated_data = &associated_data[16 as usize..];
+  for i in  0..associated_data.len() {
+    state_8[i] ^= associated_data[i]
   }
-
+  state_8[associated_data.len() as usize] ^= 1;
+  state_8[47] ^= 1;
+  gimli(&mut state);
 
 
 
   
-
-  for (i = 0;i < adlen;++i) state[i] ^= ad[i];
-  state[adlen] ^= 1;
-  state[47] ^= 1;
-  gimli(state);
 
   while (tlen >= 16) {
     for (i = 0;i < 16;++i) m[i] = state[i] ^ c[i];
