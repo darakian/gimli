@@ -148,7 +148,7 @@ fn gimli_aead_encrypt(mut message: &[u8],mut associated_data: &[u8], nonce: &[u8
 
 fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], auth_tag: &[u8; 16], nonce: &[u8; 16], key: &[u8; 32]) -> Result(Vec<u8>, Err) {
   if cipher_text.len() < 16 {
-    return err;
+    return Err;
   }
   let auth_tag = &[(cipher_text.len()-16 as usize)..];
   let mut output: Vec<u8> = Vec::new();
@@ -170,31 +170,46 @@ fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], auth_t
   state_8[47] ^= 1;
   gimli(&mut state);
 
+  for i in 0..=cipher_text.len()-16{
+    for j in 0..16 {
+      output.push(state_8[j] ^ cipher_text[j]);
+    }
+    for j in 0..16 {
+      state_8[j] = cipher_text[j];
+    }
+    gimli(&mut state);
+    cipher_text = &cipher_text[16 as usize..];
+  }
 
-  //Reference C code below
+  let mut tlen = cipher_text.len()-16;
 
-  while (tlen >= 16) {
-    for (i = 0;i < 16;++i) m[i] = state[i] ^ c[i];
-    for (i = 0;i < 16;++i) state[i] = c[i];
-    gimli(state);
-    c += 16;
-    m += 16;
+  while tlen >= 16 {
+    for i in 0..16{output.push(state_8[i] ^ cipher_text[i]);}
+    for i in 0..16{state_8[i] = cipher_text[i];}
+    gimli(&mut state);
+    cipher_text = &cipher_text[16 as usize..];
     tlen -= 16;
   }
 
-  for (i = 0;i < tlen;++i) m[i] = state[i] ^ c[i];
-  for (i = 0;i < tlen;++i) state[i] = c[i];
-  c += tlen;
-  m += tlen;
-  state[tlen] ^= 1;
-  state[47] ^= 1;
-  gimli(state);
+  for i in 0..tlen{output.push(state_8[i] ^ cipher_text[i]);}
+  for i in 0..16{state_8[i] = cipher_text[i];}
+  cipher_text = &cipher_text[tlen as usize..];
+  state_8[tlen as usize] ^= 1;
+  state_8[47] ^= 1;
+  gimli(&mut state);
 
+  let mut result: i32 = 0;
+  for i in 0..16{result |= cipher_text[i] ^ state_8[i]}
+  result -=1;
+  result = result >> 16;
+
+  // Not sure below here
   result = 0;
   for (i = 0;i < 16;++i) result |= c[i] ^ state[i];
   result -= 1;
   result = ((int32_t) result) >> 16;
 
+  //Reference C code below
   tlen = *mlen;
   m -= tlen;
   for (i = 0;i < tlen;++i) m[i] &= result;
