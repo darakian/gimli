@@ -92,7 +92,7 @@ pub fn Gimli_hash(mut input: &[u8], mut inputByteLen: u64, mut outputByteLen: u6
     return output
 }
 
-fn gimli_aead_encrypt(mut message: &[u8],mut associated_data: &[u8], nonce: &[u8; 16], key: &[u8; 32]) -> (Vec<u8>, [u8; 32]){
+fn gimli_aead_encrypt(mut message: &[u8],mut associated_data: &[u8], nonce: &[u8; 16], key: &[u8; 32]) -> (Vec<u8>, [u8; 16]){
     let mut output: Vec<u8> = Vec::new();
     let mut state: [u32; 12] = [0; 12];
     let state_ptr = state.as_ptr() as *mut u8;
@@ -143,12 +143,16 @@ fn gimli_aead_encrypt(mut message: &[u8],mut associated_data: &[u8], nonce: &[u8
     for i in 0..16 {
       output.push(state_8[i]);
     }
-    return output
+
+    gimli(&mut state);
+    let mut auth_tag: [u8; 16]= [0; 16];
+    auth_tag.clone_from_slice(&state_8[..16]);
+    return (output, auth_tag)
 }
 
 
-fn gimli_aead_decrypt(mut message: &[u8], mut associated_data: &[u8], auth_tag: &[u8; 32], nonce: &[u8; 16], key: &[u8; 32]) -> Vec<u8> {
-
+fn gimli_aead_decrypt(mut message: &[u8], mut associated_data: &[u8], auth_tag: &[u8; 16], nonce: &[u8; 16], key: &[u8; 32]) -> Vec<u8> {
+  return Vec::new()
 }
 
 
