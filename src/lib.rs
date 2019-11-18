@@ -146,10 +146,11 @@ fn gimli_aead_encrypt(mut message: &[u8],mut associated_data: &[u8], nonce: &[u8
 }
 
 
-fn gimli_aead_decrypt(mut message: &[u8], mut associated_data: &[u8], auth_tag: &[u8; 16], nonce: &[u8; 16], key: &[u8; 32]) -> Result(Vec<u8>, Err) {
-  if message.len() < 16 {
+fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], auth_tag: &[u8; 16], nonce: &[u8; 16], key: &[u8; 32]) -> Result(Vec<u8>, Err) {
+  if cipher_text.len() < 16 {
     return err;
   }
+  let auth_tag = &[(cipher_text.len()-16 as usize)..];
   let mut output: Vec<u8> = Vec::new();
   let mut state: [u32; 12] = [0; 12];
   let state_ptr = state.as_ptr() as *mut u8;
@@ -170,8 +171,7 @@ fn gimli_aead_decrypt(mut message: &[u8], mut associated_data: &[u8], auth_tag: 
   gimli(&mut state);
 
 
-
-  
+  //Reference C code below
 
   while (tlen >= 16) {
     for (i = 0;i < 16;++i) m[i] = state[i] ^ c[i];
