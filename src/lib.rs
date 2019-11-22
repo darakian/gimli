@@ -198,16 +198,11 @@ fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], auth_t
   state_8[47] ^= 1;
   gimli(&mut state);
 
-  let mut result: i32 = 0;
-  for i in 0..16{result |= cipher_text[i] ^ state_8[i]}
+  let mut result: u32 = 0;
+  for i in 0..16{result |= (cipher_text[i] ^ state_8[i]) as u32}
   result -=1;
   result = result >> 16;
 
-  // Not sure below here
-  result = 0;
-  for (i = 0;i < 16;++i) result |= c[i] ^ state[i];
-  result -= 1;
-  result = ((int32_t) result) >> 16;
 
   //Reference C code below
   tlen = *mlen;
