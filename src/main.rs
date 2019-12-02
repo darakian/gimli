@@ -1,5 +1,5 @@
 use structopt::StructOpt;
-use gimli::Gimli_hash;
+use gimli::{Gimli_hash, gimli_aead_encrypt, gimli_aead_decrypt};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Gimli-rs", about = "An implementation of the gimli cipher in hash mode.")]
@@ -26,6 +26,31 @@ fn main() {
     println!("result length: {:?}", result.len());
     println!("In c hexstring format");
     for byte in result.iter(){
+        print!("{:02x?}", byte);
+    }
+    println!("");
+    let plaintext = opt.input.as_bytes();
+    println!("Testing encryption");
+    print!("Plaintext: ");
+    for byte in plaintext.iter(){
+        print!("{:02x?}", byte);
+    }
+    println!("");
+    println!("Plaintext len: {}", plaintext.len());
+    let ad = vec![0; 16];
+    let nonce = [0; 16];
+    let key = [0; 32];
+    println!("Encryption:");
+    let e_data = gimli_aead_encrypt(plaintext, &ad, &nonce, &key);
+    for byte in e_data.iter(){
+        print!("{:02x?}", byte);
+    }
+    println!("");
+    println!("Ciphertext len: {}", e_data.len());
+    println!("Decryption:");
+    let d_data = gimli_aead_decrypt(&e_data, &ad, &nonce, &key);
+
+    for byte in d_data.iter(){
         print!("{:02x?}", byte);
     }
 }
