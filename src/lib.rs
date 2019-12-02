@@ -164,11 +164,8 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
   let mut tlen = cipher_text.len()-16;
   gimli(&mut state);
 
-  state_8[associated_data.len() as usize] ^= 1;
-  state_8[47] ^= 1;
-  gimli(&mut state);
 
-  //Handle associated data
+  // Handle associated data
   while associated_data.len() >= 16 {
     for i in  0..16 {
       state_8[i] ^= associated_data[i]
@@ -183,6 +180,7 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
   state_8[47] ^= 1;
   gimli(&mut state);
 
+  // Handle cipher text
   while cipher_text.len() >= 16{
     for j in 0..16 {
       output.push(state_8[j] ^ cipher_text[j]);
