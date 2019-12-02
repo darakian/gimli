@@ -49,8 +49,14 @@ fn main() {
     println!("Ciphertext len: {}", e_data.len());
     println!("Decryption:");
     let d_data = gimli_aead_decrypt(&e_data, &ad, &nonce, &key);
-
-    for byte in d_data.iter(){
-        print!("{:02x?}", byte);
+    match d_data {
+        Ok(v) => {
+            for byte in v.iter(){
+                print!("{:02x?}", byte);
+            }
+        }
+        Err(e) => {println!("Decrypt errored with {:?}", e);}
     }
+
+
 }

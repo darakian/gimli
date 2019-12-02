@@ -150,7 +150,7 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
   if cipher_text.len() < 16 {
     return Err("Cipher text too short");
   }
-  let auth_tag = &[(cipher_text.len()-16 as usize)..];
+  let auth_tag = &cipher_text[(cipher_text.len()-16 as usize)..];
   let mut output: Vec<u8> = Vec::new();
   let mut state: [u32; 12] = [0; 12];
   let state_ptr = state.as_ptr() as *mut u8;
@@ -191,28 +191,16 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
     gimli(&mut state);
     cipher_text = &cipher_text[16 as usize..];
   }
-  println!("Here");
-  println!("tlen: {:?}", tlen);
-
-  while tlen >= 16 {
-    for i in 0..16{output.push(state_8[i] ^ cipher_text[i]);}
-    for i in 0..16{state_8[i] = cipher_text[i];}
-    gimli(&mut state);
-    cipher_text = &cipher_text[16 as usize..];
-    tlen -= 16;
+  for i in  0..cipher_text.len() {
+    state_8[i] ^= cipher_text[i]
   }
-  println!("Here");  
-
-
-  for i in 0..tlen{output.push(state_8[i] ^ cipher_text[i]);}
-  for i in 0..16{state_8[i] = cipher_text[i];}
-  cipher_text = &cipher_text[tlen as usize..];
-  state_8[tlen as usize] ^= 1;
+  state_8[cipher_text.len() as usize] ^= 1;
   state_8[47] ^= 1;
   gimli(&mut state);
 
+  // Handle tag
   let mut result: u32 = 0;
-  for i in 0..16{result |= (cipher_text[i] ^ state_8[i]) as u32}
+  for i in 0..16{result |= (auth_tag[i] ^ state_8[i]) as u32}
   result -=1;
   result = result >> 16;
 
