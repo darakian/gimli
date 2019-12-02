@@ -157,13 +157,11 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
   let state_8 = unsafe {
       std::slice::from_raw_parts_mut(state_ptr, 48)
   };
-  println!("Here");
 
   // Init state with key and nonce plus first permute
   state_8[..16].clone_from_slice(nonce);
   state_8[16..48].clone_from_slice(key);
   gimli(&mut state);
-  println!("Here");
 
   for i in  0..associated_data.len() {
     state_8[i] ^= associated_data[i]
@@ -171,9 +169,8 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
   state_8[associated_data.len() as usize] ^= 1;
   state_8[47] ^= 1;
   gimli(&mut state);
-  println!("Here");
 
-  for i in 0..=cipher_text.len()-16{
+  while cipher_text.len() >= 16{
     for j in 0..16 {
       output.push(state_8[j] ^ cipher_text[j]);
     }
@@ -183,8 +180,9 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
     gimli(&mut state);
     cipher_text = &cipher_text[16 as usize..];
   }
-  println!("Here");
 
+
+  println!("Here c_t.len():{:?}", cipher_text.len());
   let mut tlen = cipher_text.len()-16;
 
   while tlen >= 16 {
@@ -194,7 +192,6 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
     cipher_text = &cipher_text[16 as usize..];
     tlen -= 16;
   }
-  println!("Here");
 
   for i in 0..tlen{output.push(state_8[i] ^ cipher_text[i]);}
   for i in 0..16{state_8[i] = cipher_text[i];}
