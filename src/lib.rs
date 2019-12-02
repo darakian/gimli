@@ -151,6 +151,8 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
     return Err("Cipher text too short");
   }
   let auth_tag = &cipher_text[(cipher_text.len()-16 as usize)..];
+  cipher_text = &cipher_text[..(cipher_text.len()-16 as usize)];
+
   let mut output: Vec<u8> = Vec::new();
   let mut state: [u32; 12] = [0; 12];
   let state_ptr = state.as_ptr() as *mut u8;
@@ -161,7 +163,6 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
   // Init state with key and nonce plus first permute
   state_8[..16].clone_from_slice(nonce);
   state_8[16..48].clone_from_slice(key);
-  let mut tlen = cipher_text.len()-16;
   gimli(&mut state);
 
 
@@ -201,7 +202,8 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
   // Handle tag
   let mut result: u32 = 0;
   for i in 0..16{result |= (auth_tag[i] ^ state_8[i]) as u32}
-  result -=1;
+
+  result = result.overflowing_sub(1).0;
   result = result >> 16;
 
   // Check tag
@@ -212,7 +214,14 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
   }
 
   if result != 0 {return Ok(output)}
-  else {return Err("Invalid result tag")}
+  else {
+    println!("Error with >> ");
+    for byte in output.iter(){
+      print!("{:02x?}", byte);
+    }
+    println!("");
+    return Err("Invalid result tag")
+  }
 
 }
 

@@ -31,7 +31,7 @@ fn main() {
     println!("");
     let plaintext = opt.input.as_bytes();
     println!("Testing encryption");
-    print!("Plaintext: ");
+    print!("Plaintext: \n");
     for byte in plaintext.iter(){
         print!("{:02x?}", byte);
     }
