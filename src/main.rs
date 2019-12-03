@@ -1,8 +1,11 @@
+use gimli::{gimli_aead_decrypt, gimli_aead_encrypt, gimli_hash};
 use structopt::StructOpt;
-use gimli::{gimli_hash, gimli_aead_encrypt, gimli_aead_decrypt};
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "Gimli-rs", about = "An implementation of the gimli cipher in hash mode.")]
+#[structopt(
+    name = "Gimli-rs",
+    about = "An implementation of the gimli cipher in hash mode."
+)]
 struct Opt {
     /// Input string
     #[structopt(short)]
@@ -32,7 +35,7 @@ fn main() {
     let plaintext = opt.input.as_bytes();
     println!("Testing encryption");
     print!("Plaintext: \n");
-    for byte in plaintext.iter(){
+    for byte in plaintext.iter() {
         print!("{:02x?}", byte);
     }
     println!("");
@@ -42,7 +45,7 @@ fn main() {
     let key = [0; 32];
     println!("Encryption:");
     let e_data = gimli_aead_encrypt(plaintext, &ad, &nonce, &key);
-    for byte in e_data.iter(){
+    for byte in e_data.iter() {
         print!("{:02x?}", byte);
     }
     println!("");
@@ -51,14 +54,14 @@ fn main() {
     let d_data = gimli_aead_decrypt(&e_data, &ad, &nonce, &key);
     match d_data {
         Ok(v) => {
-            for byte in v.iter(){
+            for byte in v.iter() {
                 print!("{:02x?}", byte);
             }
             println!("");
             println!("Decryption len: {:?}", v.len());
         }
-        Err(e) => {println!("Decrypt errored with {:?}", e);}
+        Err(e) => {
+            println!("Decrypt errored with {:?}", e);
+        }
     }
-
-
 }
