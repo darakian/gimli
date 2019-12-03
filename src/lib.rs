@@ -198,10 +198,7 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
     gimli(&mut state);
     cipher_text = &cipher_text[16 as usize..];
   }
-  for i in  0..cipher_text.len() {
-    state_8[i] ^= cipher_text[i];
-    output.push(state_8[i])
-  }
+  for i in  0..cipher_text.len() {output.push(state_8[i] ^ cipher_text[i])}
   for i in  0..cipher_text.len() {state_8[i] = cipher_text[i]}
   state_8[cipher_text.len() as usize] ^= 1;
   state_8[47] ^= 1;
