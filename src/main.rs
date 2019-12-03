@@ -1,5 +1,5 @@
 use structopt::StructOpt;
-use gimli::{Gimli_hash, gimli_aead_encrypt, gimli_aead_decrypt};
+use gimli::{gimli_hash, gimli_aead_encrypt, gimli_aead_decrypt};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Gimli-rs", about = "An implementation of the gimli cipher in hash mode.")]
@@ -17,18 +17,18 @@ fn main() {
     let opt = Opt::from_args();
     println!("{:?}", opt);
     println!("{:?}", opt.input);
-    println!("Input bytes: {:x?}", opt.input.as_bytes());
-    let result = Gimli_hash(
-        opt.input.as_bytes(),
-        opt.input.as_bytes().len() as u64,
-        opt.out_length);
-    println!("result: {:x?}", result);
-    println!("result length: {:?}", result.len());
-    println!("In c hexstring format");
-    for byte in result.iter(){
-        print!("{:02x?}", byte);
-    }
-    println!("");
+    // println!("Input bytes: {:x?}", opt.input.as_bytes());
+    // let result = gimli_hash(
+    //     opt.input.as_bytes(),
+    //     opt.input.as_bytes().len() as u64,
+    //     opt.out_length);
+    // println!("result: {:x?}", result);
+    // println!("result length: {:?}", result.len());
+    // println!("In c hexstring format");
+    // for byte in result.iter(){
+    //     print!("{:02x?}", byte);
+    // }
+    // println!("");
     let plaintext = opt.input.as_bytes();
     println!("Testing encryption");
     print!("Plaintext: \n");
