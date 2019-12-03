@@ -133,7 +133,6 @@ pub fn gimli_aead_encrypt(mut message: &[u8],mut associated_data: &[u8], nonce: 
     state_8[i] ^= message[i];
     output.push(state_8[i]);
   }
-  message = &message[message.len() as usize..];
   state_8[message.len() as usize] ^= 1;
   state_8[47] ^= 1;
   gimli(&mut state);
@@ -200,46 +199,22 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
   }
 
   for i in  0..cipher_text.len() {output.push(state_8[i] ^ cipher_text[i])}
-  // Bug in the next line?
   for i in  0..cipher_text.len() {state_8[i] = cipher_text[i]}
   state_8[cipher_text.len() as usize] ^= 1;
   state_8[47] ^= 1;
   gimli(&mut state);
-  println!("state_8: ");
-  for byte in state_8.iter().take(16){
-    print!("{:02x?}", byte);
-  }
-  println!(" <<");
-  println!("auth_tag: ");
-  for byte in auth_tag.iter(){
-    print!("{:02x?}", byte);
-  }
-  println!(" <<");
 
 
   // Handle tag
   let mut result: u32 = 0;
   for i in 0..16{result |= (auth_tag[i] ^ state_8[i]) as u32}
-
   result = result.overflowing_sub(1).0;
   result = result >> 16;
-  println!("Result: {:?}", result);
-  println!("output: ");
-  for byte in output.iter(){
-    print!("{:02x?}", byte);
-  }
-  println!(" <<");
-  // Check tag
   let output_len = output.len();
   let last_index = output_len-1;
   for i in (0..16).rev(){
     output[last_index-i] &= result as u8; // Valid. Only the first 8 bits of result are possibly non-zero.
   }
-  // println!("output: ");
-  // for byte in output.iter(){
-  //   print!("{:02x?}", byte);
-  // }
-  // println!(" <<");
 
   if result != 0 {return Ok(output)}
   else {
