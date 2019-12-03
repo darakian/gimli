@@ -150,8 +150,14 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
   if cipher_text.len() < 16 {
     return Err("Cipher text too short");
   }
+  // Slice off auth tag and cipher text to allow for independent handling.
   let auth_tag = &cipher_text[(cipher_text.len()-16 as usize)..];
   cipher_text = &cipher_text[..(cipher_text.len()-16 as usize)];
+  println!("auth_tag: ");
+  for byte in auth_tag.iter(){
+    print!("{:02x?}", byte);
+  }
+  println!("");
 
   let mut output: Vec<u8> = Vec::new();
   let mut state: [u32; 12] = [0; 12];
@@ -193,11 +199,15 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
     cipher_text = &cipher_text[16 as usize..];
   }
   for i in  0..cipher_text.len() {
-    state_8[i] ^= cipher_text[i]
+    state_8[i] ^= cipher_text[i];
+    output.push(state_8[i])
   }
+  for i in  0..cipher_text.len() {state_8[i] = cipher_text[i]}
   state_8[cipher_text.len() as usize] ^= 1;
   state_8[47] ^= 1;
   gimli(&mut state);
+
+
 
   // Handle tag
   let mut result: u32 = 0;
@@ -205,13 +215,23 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
 
   result = result.overflowing_sub(1).0;
   result = result >> 16;
-
+  println!("Result: {:?}", result);
+  println!("output: ");
+  for byte in output.iter(){
+    print!("{:02x?}", byte);
+  }
+  println!(" <<");
   // Check tag
   let output_len = output.len();
   let last_index = output_len-1;
   for i in (0..16).rev(){
     output[last_index-i] &= (result as u8); // Valid. Only the first 8 bits of result are possibly non-zero.
   }
+  println!("output: ");
+  for byte in output.iter(){
+    print!("{:02x?}", byte);
+  }
+  println!(" <<");
 
   if result != 0 {return Ok(output)}
   else {

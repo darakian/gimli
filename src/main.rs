@@ -54,6 +54,8 @@ fn main() {
             for byte in v.iter(){
                 print!("{:02x?}", byte);
             }
+            println!("");
+            println!("Decryption len: {:?}", v.len());
         }
         Err(e) => {println!("Decrypt errored with {:?}", e);}
     }
