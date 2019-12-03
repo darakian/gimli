@@ -198,7 +198,9 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
     gimli(&mut state);
     cipher_text = &cipher_text[16 as usize..];
   }
+
   for i in  0..cipher_text.len() {output.push(state_8[i] ^ cipher_text[i])}
+  // Bug in the next line?
   for i in  0..cipher_text.len() {state_8[i] = cipher_text[i]}
   state_8[cipher_text.len() as usize] ^= 1;
   state_8[47] ^= 1;
@@ -222,11 +224,11 @@ pub fn gimli_aead_decrypt(mut cipher_text: &[u8], mut associated_data: &[u8], no
   result = result.overflowing_sub(1).0;
   result = result >> 16;
   println!("Result: {:?}", result);
-  // println!("output: ");
-  // for byte in output.iter(){
-  //   print!("{:02x?}", byte);
-  // }
-  // println!(" <<");
+  println!("output: ");
+  for byte in output.iter(){
+    print!("{:02x?}", byte);
+  }
+  println!(" <<");
   // Check tag
   let output_len = output.len();
   let last_index = output_len-1;
