@@ -2,6 +2,8 @@ use gimli::{gimli_aead_decrypt, gimli_aead_encrypt, gimli_hash};
 use structopt::StructOpt;
 use clap::arg_enum;
 use std::path::PathBuf;
+use std::fs::File;
+use std::io::prelude::*;
 
 arg_enum! {
     #[derive(Debug)]
@@ -15,7 +17,7 @@ arg_enum! {
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "Gimli-rs",
-    about = "An implementation of the gimli cipher in hash mode."
+    about = "An implementation of the gimli cipher with hashing and AEAD functionality"
 )]
 
 
@@ -44,12 +46,10 @@ struct Opt {
         )]
     mode: GimliMode,
 
-    /// Output file. Required for Encrypt/Decrypt
+    /// Output. Defaults to std out.
     #[structopt(
         short = "o",
         long = "out",
-        requires_ifs(&[("mode", "encrypt"), ("mode", "decrypt")]),
-        required_ifs(&[("mode", "encrypt"), ("mode", "decrypt")]),
         parse(from_os_str),
         )]
     output: Option<PathBuf>,
@@ -74,16 +74,55 @@ fn main() {
 
     match opt.mode {
         GimliMode::Hash => {
-            let result = gimli_hash(
-        opt.input.as_bytes(),
-        opt.input.as_bytes().len() as u64,
-        opt.out_length);
-        for byte in result.iter(){
-        print!("{:02x?}", byte);
+            match opt.is_file {
+                true => {
+                    let mut input_file = File::open(opt.input).expect("Error opening input file.");
+                    let mut contents = vec![];
+                    input_file.read_to_end(&mut contents).expect("Error reading input file.");
+                    let file_length = contents.len() as u64;
+                    let result = gimli_hash(
+                    &contents,
+                    file_length,
+                    opt.out_length);
+                    match opt.output {
+                        Some(file_path) => {
+                            let mut file = File::create(file_path).expect("Failed to open output file");
+                            file.write_all(&result).expect("Error writing to output file");
+                        },
+                        None => {
+                                for byte in result.iter(){
+                                    print!("{:02x?}", byte);
+                                }
+                        },
+                    }
+                }
+                false => {
+                    let result = gimli_hash(
+                    opt.input.as_bytes(),
+                    opt.input.as_bytes().len() as u64,
+                    opt.out_length);
+                    match opt.output {
+                        Some(file_path) => {
+                            let mut file = File::create(file_path).expect("Failed to open output file");
+                            file.write_all(&result).expect("Error writing to output file");
+                        },
+                        None => {
+                                for byte in result.iter(){
+                                    print!("{:02x?}", byte);
+                                }
+                        },
+                    } 
+                }
             }
+            
+
         },
-        GimliMode::Encrypt => {},
-        GimliMode::Decrypt => {},
+        GimliMode::Encrypt => {
+
+        },
+        GimliMode::Decrypt => {
+
+        },
 
     }
 
@@ -132,5 +171,3 @@ fn main() {
     //     }
     // }
 }
-
-
