@@ -220,10 +220,9 @@ pub fn gimli_aead_decrypt(
     }
     result = result.overflowing_sub(1).0;
     result = result >> 16;
-    let output_len = output.len();
-    let last_index = output_len - 1;
-    for i in (0..16).rev() {
-        output[last_index - i] &= result as u8; // Valid. Only the first 8 bits of result are possibly non-zero.
+
+    for i in 0..output.len() {
+        output[i] &= result as u8; // Valid. Only the first 8 bits of result are possibly non-zero.
     }
 
     if result != 0 {

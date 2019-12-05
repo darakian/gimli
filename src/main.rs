@@ -6,15 +6,28 @@ use structopt::StructOpt;
     name = "Gimli-rs",
     about = "An implementation of the gimli cipher in hash mode."
 )]
+
 struct Opt {
     /// Input string
-    #[structopt(short)]
-    input: String,
+    #[structopt(short = "i", long = "input", conflicts_with("file"))]
+    input: Option<String>,
+
+    /// Input file
+    #[structopt(short = "f", long = "file", conflicts_with("input"))]
+    file: Option<String>,
+
+    #[structopt(short = "m", long = "mode", possible_values = &["hash", "encrypt", "decrypt"], case_insensitive = false, default_value = "hash")]
+    mode: String,
+
+    #[structopt(short = "o", long = "out", requires_ifs(&[("mode", "encrypt"),("mode", "decrypt")]), required_ifs(&[("mode", "encrypt"),("mode", "decrypt")]))]
 
     /// Hash length
-    #[structopt(short)]
+    #[structopt(short = "l", long = "length", default_value = "32", requires_if("mode", "hash"))]
     out_length: u64,
 }
+
+
+
 
 fn main() {
     let opt = Opt::from_args();
@@ -32,7 +45,8 @@ fn main() {
     //     print!("{:02x?}", byte);
     // }
     // println!("");
-    let plaintext = opt.input.as_bytes();
+    let plaintext = opt.input.unwrap();
+    let plaintext = plaintext.as_bytes();
     println!("Testing encryption");
     print!("Plaintext: \n");
     for byte in plaintext.iter() {
