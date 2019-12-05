@@ -1,5 +1,5 @@
 [package]
-name = "gimli"
+name = "gimli-rs"
 version = "0.1.0"
 authors = ["Jon Moroney <darakian@gmail.com>"]
 edition = "2018"
