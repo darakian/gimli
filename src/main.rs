@@ -22,7 +22,7 @@ arg_enum! {
 
 
 struct Opt {
-    /// Input mode.
+    /// Input.
     #[structopt(
         short = "i",
         long = "input"
@@ -54,6 +54,26 @@ struct Opt {
         )]
     output: Option<PathBuf>,
 
+    /// Crypto Key.
+    #[structopt(
+        short = "k",
+        long = "key",
+        required_if("mode", "encrypt"),
+        required_if("mode", "decrypt"),
+        default_value = "",
+        )]
+    key: String,
+
+        /// Associated data.
+    #[structopt(
+        short = "a",
+        long = "associated_data",
+        required_if("mode", "encrypt"),
+        required_if("mode", "decrypt"),
+        default_value = "",
+        )]
+    ad: String,
+
     /// Hash length. Required for Hash mode.
     #[structopt(
         short = "l",
@@ -70,19 +90,15 @@ struct Opt {
 fn main() {
     let opt = Opt::from_args();
     println!("{:?}", opt);
-    println!("{:?}", opt.input);
 
     match opt.mode {
         GimliMode::Hash => {
             match opt.is_file {
                 true => {
-                    let mut input_file = File::open(opt.input).expect("Error opening input file.");
-                    let mut contents = vec![];
-                    input_file.read_to_end(&mut contents).expect("Error reading input file.");
-                    let file_length = contents.len() as u64;
+                    let contents = open_input_file(opt.input);
                     let result = gimli_hash(
                     &contents,
-                    file_length,
+                    contents.len() as u64,
                     opt.out_length);
                     match opt.output {
                         Some(file_path) => {
@@ -114,18 +130,106 @@ fn main() {
                     } 
                 }
             }
-            
-
         },
         GimliMode::Encrypt => {
+            let key_hash = gimli_hash(opt.key.as_bytes(), opt.key.as_bytes().len() as u64, 32);
+            let mut key_array = [0; 32];
+            key_array.copy_from_slice(&key_hash);
+            match opt.is_file {
+                true => {
+                    let contents = open_input_file(opt.input);
+                    let result = gimli_aead_encrypt(
+                    &contents,
+                    opt.ad.as_bytes(),
+                    &[0; 16],
+                    &key_array);
+                    match opt.output {
+                        Some(file_path) => {
+                            let mut file = File::create(file_path).expect("Failed to open output file");
+                            file.write_all(&result).expect("Error writing to output file");
+                        },
+                        None => {
+                                for byte in result.iter(){
+                                    print!("{:02x?}", byte);
+                                }
+                        },
+                    }
+                }
+                false => {
+                    let result = gimli_aead_encrypt(
+                    opt.input.as_bytes(),
+                    opt.ad.as_bytes(),
+                    &[0; 16],
+                    &key_array);
+                    match opt.output {
+                        Some(file_path) => {
+                            let mut file = File::create(file_path).expect("Failed to open output file");
+                            file.write_all(&result).expect("Error writing to output file");
+                        },
+                        None => {
+                                for byte in result.iter(){
+                                    print!("{:02x?}", byte);
+                                }
+                        },
+                    } 
+                }
+            }
 
         },
         GimliMode::Decrypt => {
+            let key_hash = gimli_hash(opt.key.as_bytes(), opt.key.as_bytes().len() as u64, 32);
+            let mut key_array = [0; 32];
+            key_array.copy_from_slice(&key_hash);
+            match opt.is_file {
+                true => {
+                    let contents = open_input_file(opt.input);
+                    let result = gimli_aead_decrypt(
+                    &contents,
+                    opt.ad.as_bytes(),
+                    &[0; 16],
+                    &key_array).expect("Error decypting");
+                    match opt.output {
+                        Some(file_path) => {
+                            let mut file = File::create(file_path).expect("Failed to open output file");
+                            file.write_all(&result).expect("Error writing to output file");
+                        },
+                        None => {
+                                for byte in result.iter(){
+                                    print!("{:02x?}", byte);
+                                }
+                        },
+                    }
+                }
+                false => {
+                    let result = gimli_aead_decrypt(
+                    opt.input.as_bytes(),
+                    opt.ad.as_bytes(),
+                    &[0; 16],
+                    &key_array).expect("Error decypting");
+                    match opt.output {
+                        Some(file_path) => {
+                            let mut file = File::create(file_path).expect("Failed to open output file");
+                            file.write_all(&result).expect("Error writing to output file");
+                        },
+                        None => {
+                                for byte in result.iter(){
+                                    print!("{:02x?}", byte);
+                                }
+                        },
+                    } 
+                }
+            }
 
         },
 
     }
 
+    fn open_input_file(path: String) -> Vec<u8>{
+        let mut input_file = File::open(path).expect("Error opening input file.");
+        let mut contents = vec![];
+        input_file.read_to_end(&mut contents).expect("Error reading input file.");
+        return contents
+    }
 
 
     // println!("Input bytes: {:x?}", opt.input.as_bytes());

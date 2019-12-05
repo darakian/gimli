@@ -160,11 +160,6 @@ pub fn gimli_aead_decrypt(
     // Slice off auth tag and cipher text to allow for independent handling.
     let auth_tag = &cipher_text[(cipher_text.len() - 16 as usize)..];
     cipher_text = &cipher_text[..(cipher_text.len() - 16 as usize)];
-    println!("auth_tag: ");
-    for byte in auth_tag.iter() {
-        print!("{:02x?}", byte);
-    }
-    println!("");
 
     let mut output: Vec<u8> = Vec::new();
     let mut state: [u32; 12] = [0; 12];
