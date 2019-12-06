@@ -1,9 +1,9 @@
 use gimli::{gimli_aead_decrypt, gimli_aead_encrypt, gimli_hash};
 use structopt::StructOpt;
 use structopt::clap::arg_enum;
-use std::path::PathBuf;
 use std::fs::File;
 use std::io::prelude::*;
+use rand::prelude::*;
 
 arg_enum! {
     #[derive(Debug)]
@@ -50,9 +50,8 @@ struct Opt {
     #[structopt(
         short = "o",
         long = "out",
-        parse(from_os_str),
         )]
-    output: Option<PathBuf>,
+    output: Option<String>,
 
     /// Crypto Key.
     #[structopt(
@@ -132,6 +131,9 @@ fn main() {
             }
         },
         GimliMode::Encrypt => {
+            let mut rng = rand::thread_rng();
+            let mut nonce = [0u8; 16];
+            rng.fill_bytes(&mut nonce);
             let key_hash = gimli_hash(opt.key.as_bytes(), opt.key.as_bytes().len() as u64, 32);
             let mut key_array = [0; 32];
             key_array.copy_from_slice(&key_hash);
@@ -141,12 +143,11 @@ fn main() {
                     let result = gimli_aead_encrypt(
                     &contents,
                     opt.ad.as_bytes(),
-                    &[0; 16],
+                    &nonce,
                     &key_array);
                     match opt.output {
                         Some(file_path) => {
-                            let mut file = File::create(file_path).expect("Failed to open output file");
-                            file.write_all(&result).expect("Error writing to output file");
+                            write_encrypted_file(file_path, &nonce, result);
                         },
                         None => {
                                 for byte in result.iter(){
@@ -159,12 +160,11 @@ fn main() {
                     let result = gimli_aead_encrypt(
                     opt.input.as_bytes(),
                     opt.ad.as_bytes(),
-                    &[0; 16],
+                    &nonce,
                     &key_array);
                     match opt.output {
                         Some(file_path) => {
-                            let mut file = File::create(file_path).expect("Failed to open output file");
-                            file.write_all(&result).expect("Error writing to output file");
+                            write_encrypted_file(file_path, &nonce, result);
                         },
                         None => {
                                 for byte in result.iter(){
@@ -182,11 +182,14 @@ fn main() {
             key_array.copy_from_slice(&key_hash);
             match opt.is_file {
                 true => {
-                    let contents = open_input_file(opt.input);
+                    let mut contents = open_input_file(opt.input);
+                    let mut nonce = [0; 16]; 
+                    nonce.copy_from_slice(&contents[..16]);
+                    contents = contents[16..].to_vec();
                     let result = gimli_aead_decrypt(
                     &contents,
                     opt.ad.as_bytes(),
-                    &[0; 16],
+                    &nonce,
                     &key_array).expect("Error decypting");
                     match opt.output {
                         Some(file_path) => {
@@ -201,10 +204,14 @@ fn main() {
                     }
                 }
                 false => {
+                    let mut input_bytes = opt.input.as_bytes();
+                    let mut nonce = [0; 16];
+                    nonce.copy_from_slice(&input_bytes[..16]);
+                    input_bytes = &input_bytes[16..];
                     let result = gimli_aead_decrypt(
-                    opt.input.as_bytes(),
+                    input_bytes,
                     opt.ad.as_bytes(),
-                    &[0; 16],
+                    &nonce,
                     &key_array).expect("Error decypting");
                     match opt.output {
                         Some(file_path) => {
@@ -229,6 +236,12 @@ fn main() {
         let mut contents = vec![];
         input_file.read_to_end(&mut contents).expect("Error reading input file.");
         return contents
+    }
+
+    fn write_encrypted_file(path: String, nonce: &[u8; 16], ciphertext: Vec<u8>) -> (){
+        let mut file = File::create(path).expect("Failed to open output file");
+        file.write_all(nonce).expect("Error writing to output file");
+        file.write_all(&ciphertext).expect("Error writing to output file");
     }
 
 
