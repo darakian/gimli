@@ -2,6 +2,7 @@ use gimli::{gimli_aead_decrypt, gimli_aead_encrypt, gimli_hash};
 use structopt::StructOpt;
 use structopt::clap::arg_enum;
 use std::fs::File;
+use std::io::BufReader;
 use std::io::prelude::*;
 use rand::prelude::*;
 
@@ -94,10 +95,12 @@ fn main() {
         GimliMode::Hash => {
             match opt.is_file {
                 true => {
-                    let contents = open_input_file(opt.input);
+                    let f = File::open(opt.input).expect("Error opening file for hashing.");
+                    let file_len = f.metadata().expect("Error reading input file length").len();
+                    let reader = BufReader::new(f);
                     let result = gimli_hash(
-                    &contents,
-                    contents.len() as u64,
+                    reader.bytes(),
+                    file_len,
                     opt.out_length);
                     match opt.output {
                         Some(file_path) => {
@@ -112,9 +115,10 @@ fn main() {
                     }
                 }
                 false => {
+                    let input_len = opt.input.as_bytes().len() as u64;
                     let result = gimli_hash(
-                    opt.input.as_bytes(),
-                    opt.input.as_bytes().len() as u64,
+                    opt.input.into_bytes().into_iter().map(|x| Ok(x)),
+                    input_len,
                     opt.out_length);
                     match opt.output {
                         Some(file_path) => {
@@ -134,7 +138,11 @@ fn main() {
             let mut rng = rand::thread_rng();
             let mut nonce = [0u8; 16];
             rng.fill_bytes(&mut nonce);
-            let key_hash = gimli_hash(opt.key.as_bytes(), opt.key.as_bytes().len() as u64, 32);
+            let key_len = opt.key.as_bytes().len() as u64;
+            let key_hash = gimli_hash(
+                opt.key.into_bytes().into_iter().map(|x| Ok(x)),
+                key_len,
+                32);
             let mut key_array = [0; 32];
             key_array.copy_from_slice(&key_hash);
             match opt.is_file {
@@ -177,7 +185,11 @@ fn main() {
 
         },
         GimliMode::Decrypt => {
-            let key_hash = gimli_hash(opt.key.as_bytes(), opt.key.as_bytes().len() as u64, 32);
+            let key_len = opt.key.as_bytes().len() as u64;
+            let key_hash = gimli_hash(
+                opt.key.into_bytes().into_iter().map(|x| Ok(x)),
+                key_len,
+                32);
             let mut key_array = [0; 32];
             key_array.copy_from_slice(&key_hash);
             match opt.is_file {

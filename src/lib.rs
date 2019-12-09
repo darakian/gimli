@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::io;
 
 fn rotate(x: u32, bits: usize) -> u32 {
     if bits == 0 {
@@ -52,8 +53,7 @@ fn gimli(state: &mut [u32; 12]) {
 
 static RATE_IN_BYTES: u64 = 16;
 
-pub fn gimli_hash(mut input: &[u8], mut input_byte_len: u64, mut output_byte_len: u64) -> Vec<u8> {
-    let mut output: Vec<u8> = Vec::with_capacity(output_byte_len as usize);
+pub fn gimli_hash(mut input:  impl Iterator<Item = Result<u8, io::Error>>, mut input_byte_len: u64, mut output_byte_len: u64) -> Vec<u8> {
     let mut state: [u32; 12] = [0; 12];
     let state_ptr = state.as_ptr() as *mut u8;
     let state_8 = unsafe { std::slice::from_raw_parts_mut(state_ptr, 48) };
@@ -63,9 +63,8 @@ pub fn gimli_hash(mut input: &[u8], mut input_byte_len: u64, mut output_byte_len
     while input_byte_len > 0 {
         block_size = min(input_byte_len, RATE_IN_BYTES);
         for i in 0..block_size {
-            state_8[i as usize] ^= input[i as usize];
+            state_8[i as usize] ^= input.next().unwrap().expect("Read error on input");
         }
-        input = &input[block_size as usize..];
         input_byte_len -= block_size;
 
         if block_size == RATE_IN_BYTES {
@@ -82,6 +81,7 @@ pub fn gimli_hash(mut input: &[u8], mut input_byte_len: u64, mut output_byte_len
     gimli(&mut state);
 
     // === Squeeze out all the output blocks ===
+    let mut output: Vec<u8> = Vec::with_capacity(output_byte_len as usize);
     while output_byte_len > 0 {
         block_size = min(output_byte_len, RATE_IN_BYTES);
         output.extend_from_slice(&state_8[..block_size as usize]);
@@ -249,9 +249,14 @@ mod tests{
             ];
 
         for vec in hash_vectors.iter(){
+            let input_len = vec.0.len() as u64;
             assert_eq!(vec.1, gimli_hash(
-                vec.0.as_bytes(),
-                vec.0.len() as u64,
+                vec.0
+                    .to_string()
+                    .into_bytes()
+                    .into_iter()
+                    .map(|x| Ok(x)),
+                input_len,
                 vec.2).iter().map(|x| format!("{:02x?}", x)).collect::<String>()
             )
         }
