@@ -2,10 +2,12 @@
 A pure rust implementation of the gimli cipher
 
 # Status
-Not yet validated.
-
+Hash function working with cipher test vectors. Test with   
+```
+cargo test
+```
 # References
-The gimli cipher is described here https://gimli.cr.yp.to/ by Daniel J. Bernstein, et al. 
+The gimli cipher is described here https://gimli.cr.yp.to/ by Daniel J. Bernstein, et al.
 This implementation began as a port of the reference C code and aims to be a pure rust version of the spec.
 
 # Paper
