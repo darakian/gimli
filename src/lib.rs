@@ -94,7 +94,8 @@ pub fn gimli_hash(mut input:  impl Iterator<Item = Result<u8, io::Error>>, mut i
 }
 
 pub fn gimli_aead_encrypt(
-    mut message: &[u8],
+    mut message: impl Iterator<Item = Result<u8, io::Error>>,
+    mut message_len: usize,
     mut associated_data: &[u8],
     nonce: &[u8; 16],
     key: &[u8; 32],
@@ -124,20 +125,20 @@ pub fn gimli_aead_encrypt(
     state_8[47] ^= 1;
     gimli(&mut state);
 
-    while message.len() >= 16 {
+    while message_len >= 16 {
         for i in 0..16 {
-            state_8[i] ^= message[i];
+            state_8[i] ^= message.next().unwrap().expect("Read error on input");
             output.push(state_8[i]);
+            message_len -=1;
         }
         gimli(&mut state);
-        message = &message[16 as usize..];
     }
 
-    for i in 0..message.len() {
-        state_8[i] ^= message[i];
+    for i in 0..message_len {
+        state_8[i] ^= message.next().unwrap().expect("Read error on input");
         output.push(state_8[i]);
     }
-    state_8[message.len() as usize] ^= 1;
+    state_8[message_len as usize] ^= 1;
     state_8[47] ^= 1;
     gimli(&mut state);
 
@@ -275,8 +276,24 @@ mod tests{
         let cipher_vectors = get_cipher_vectors();
 
         for vec in cipher_vectors.iter(){
-            assert_eq!(vec.2, gimli_aead_encrypt(&vec.0, &vec.1, &nonce, &key));
-            assert_eq!(vec.0, gimli_aead_decrypt(&vec.2, &vec.1, &nonce, &key).expect("Error in test decryption"));
+            assert_eq!(vec.2, gimli_aead_encrypt(
+                vec.0.clone().into_iter().map(|x| Ok(x)),
+                vec.0.len(),
+                &vec.1,
+                &nonce,
+                &key));
+
+            assert_eq!(vec.0, gimli_aead_decrypt(
+                &vec.2,
+                &vec.1,
+                &nonce,
+                &key).expect("Error in test decryption"));
+            // assert_eq!(vec.0, gimli_aead_decrypt(
+            //     vec.2.into_iter().map(|x| Ok(x)),
+            //     vec.2.len(),
+            //     &vec.1,
+            //     &nonce,
+            //     &key).expect("Error in test decryption"));
         }
     }
 }

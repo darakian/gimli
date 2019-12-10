@@ -148,8 +148,10 @@ fn main() {
             match opt.is_file {
                 true => {
                     let contents = open_input_file(opt.input);
+                    let contents_len = contents.len();
                     let result = gimli_aead_encrypt(
-                    &contents,
+                    contents.into_iter().map(|x| Ok(x)),
+                    contents_len,
                     opt.ad.as_bytes(),
                     &nonce,
                     &key_array);
@@ -165,8 +167,10 @@ fn main() {
                     }
                 }
                 false => {
+                    let input_len = opt.input.as_bytes().len();
                     let result = gimli_aead_encrypt(
-                    opt.input.as_bytes(),
+                    opt.input.into_bytes().into_iter().map(|x| Ok(x)),
+                    input_len,
                     opt.ad.as_bytes(),
                     &nonce,
                     &key_array);
