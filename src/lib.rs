@@ -191,8 +191,6 @@ pub fn gimli_aead_decrypt(
     while cipher_text.len() >= 16 {
         for j in 0..16 {
             output.push(state_8[j] ^ cipher_text[j]);
-        }
-        for j in 0..16 {
             state_8[j] = cipher_text[j];
         }
         gimli(&mut state);
@@ -200,10 +198,8 @@ pub fn gimli_aead_decrypt(
     }
 
     for i in 0..cipher_text.len() {
-        output.push(state_8[i] ^ cipher_text[i])
-    }
-    for i in 0..cipher_text.len() {
-        state_8[i] = cipher_text[i]
+        output.push(state_8[i] ^ cipher_text[i]);
+        state_8[i] = cipher_text[i];
     }
     state_8[cipher_text.len() as usize] ^= 1;
     state_8[47] ^= 1;
