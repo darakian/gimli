@@ -1,4 +1,4 @@
-use gimli::{gimli_aead_decrypt, gimli_aead_encrypt, gimli_hash};
+use gimli_rs::{gimli_aead_decrypt, gimli_aead_encrypt, gimli_hash};
 use structopt::StructOpt;
 use structopt::clap::arg_enum;
 use std::fs::File;
