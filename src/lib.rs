@@ -235,11 +235,13 @@ pub fn gimli_aead_decrypt(
 #[cfg(test)]
 mod tests{
     use super::*;
+    mod cipher_test;
+    use crate::tests::cipher_test::cipher_test::get_cipher_vectors;
 
 
     #[test]
     fn hash_test(){
-    
+        // (Plaintext, hash, hash_len)
         let hash_vectors = vec![
             ("There's plenty for the both of us, may the best Dwarf win.", "4afb3ff784c7ad6943d49cf5da79facfa7c4434e1ce44f5dd4b28f91a84d22c8", 32, ),
             ("If anyone was to ask for my opinion, which I note they're not, I'd say we were taking the long way around.", "ba82a16a7b224c15bed8e8bdc88903a4006bc7beda78297d96029203ef08e07c", 32),
@@ -256,4 +258,28 @@ mod tests{
             )
         }
     }
+
+    #[test]
+    fn test_cipher(){
+
+        // Test key = 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F
+        let key = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F];
+        // Test nonce = 000102030405060708090A0B0C0D0E0F
+        let nonce = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F];
+        // (Plaintext, AD, Ciphertext)
+        let cipher_vectors = get_cipher_vectors();
+
+        for vec in cipher_vectors.iter(){
+            assert_eq!(vec.2, gimli_aead_encrypt(&vec.0, &vec.1, &nonce, &key));
+            assert_eq!(vec.0, gimli_aead_decrypt(&vec.2, &vec.1, &nonce, &key).expect("Error in test decryption"));
+        }
+    }
 }
+
+
+
+
+
+
+
+
