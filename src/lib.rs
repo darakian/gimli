@@ -150,18 +150,17 @@ pub fn gimli_aead_encrypt(
 }
 
 pub fn gimli_aead_decrypt(
-    mut cipher_text: &[u8],
+    mut cipher_text: impl Iterator<Item = Result<u8, io::Error>>,
+    cipher_text_len: usize,
     mut associated_data: &[u8],
     nonce: &[u8; 16],
     key: &[u8; 32],
 ) -> Result<Vec<u8>, &'static str> {
-    if cipher_text.len() < 16 {
+    if cipher_text_len < 16 {
         return Err("Cipher text too short");
     }
-    // Slice off auth tag and cipher text to allow for independent handling.
-    let auth_tag = &cipher_text[(cipher_text.len() - 16 as usize)..];
-    cipher_text = &cipher_text[..(cipher_text.len() - 16 as usize)];
 
+    let mut cipher_message_len = cipher_text_len - 16;
     let mut output: Vec<u8> = Vec::new();
     let mut state: [u32; 12] = [0; 12];
     let state_ptr = state.as_ptr() as *mut u8;
@@ -188,27 +187,30 @@ pub fn gimli_aead_decrypt(
     gimli(&mut state);
 
     // Handle cipher text
-    while cipher_text.len() >= 16 {
+    while cipher_message_len >= 16 {
         for j in 0..16 {
-            output.push(state_8[j] ^ cipher_text[j]);
-            state_8[j] = cipher_text[j];
+            let current_byte = cipher_text.next().unwrap().expect("Read error on input");
+            output.push(state_8[j] ^ current_byte);
+            state_8[j] = current_byte;
         }
         gimli(&mut state);
-        cipher_text = &cipher_text[16 as usize..];
+        cipher_message_len-=16;
     }
 
-    for i in 0..cipher_text.len() {
-        output.push(state_8[i] ^ cipher_text[i]);
-        state_8[i] = cipher_text[i];
+    for i in 0..cipher_message_len {
+        let current_byte = cipher_text.next().unwrap().expect("Read error on input");
+        output.push(state_8[i] ^ current_byte);
+        state_8[i] = current_byte;
     }
-    state_8[cipher_text.len() as usize] ^= 1;
+    state_8[cipher_message_len as usize] ^= 1;
     state_8[47] ^= 1;
     gimli(&mut state);
 
     // Handle tag
     let mut result: u32 = 0;
     for i in 0..16 {
-        result |= (auth_tag[i] ^ state_8[i]) as u32
+        let current_byte = cipher_text.next().unwrap().expect("Read error on input");
+        result |= (current_byte ^ state_8[i]) as u32
     }
     result = result.overflowing_sub(1).0;
     result = result >> 16;
@@ -234,7 +236,6 @@ mod tests{
     use super::*;
     mod cipher_test;
     use crate::tests::cipher_test::cipher_test::get_cipher_vectors;
-
 
     #[test]
     fn hash_test(){
@@ -280,16 +281,11 @@ mod tests{
                 &key));
 
             assert_eq!(vec.0, gimli_aead_decrypt(
-                &vec.2,
+                vec.2.clone().into_iter().map(|x| Ok(x)),
+                vec.2.len(),
                 &vec.1,
                 &nonce,
                 &key).expect("Error in test decryption"));
-            // assert_eq!(vec.0, gimli_aead_decrypt(
-            //     vec.2.into_iter().map(|x| Ok(x)),
-            //     vec.2.len(),
-            //     &vec.1,
-            //     &nonce,
-            //     &key).expect("Error in test decryption"));
         }
     }
 }
