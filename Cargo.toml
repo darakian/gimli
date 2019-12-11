@@ -3,6 +3,12 @@ name = "gimli_rs"
 version = "0.1.0"
 authors = ["Jon Moroney <darakian@gmail.com>"]
 edition = "2018"
+description = "A pure rust implementation of the gimli cipher"
+license = "MIT"
+homepage = "https://github.com/darakian/gimli"
+repository = "https://github.com/darakian/gimli"
+documentation = "https://docs.rs/gimli"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
