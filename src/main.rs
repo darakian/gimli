@@ -148,8 +148,10 @@ fn main() {
             match opt.is_file {
                 true => {
                     let contents = open_input_file(opt.input);
+                    let contents_len = contents.len();
                     let result = gimli_aead_encrypt(
-                    &contents,
+                    contents.into_iter().map(|x| Ok(x)),
+                    contents_len,
                     opt.ad.as_bytes(),
                     &nonce,
                     &key_array);
@@ -165,8 +167,10 @@ fn main() {
                     }
                 }
                 false => {
+                    let input_len = opt.input.as_bytes().len();
                     let result = gimli_aead_encrypt(
-                    opt.input.as_bytes(),
+                    opt.input.into_bytes().into_iter().map(|x| Ok(x)),
+                    input_len,
                     opt.ad.as_bytes(),
                     &nonce,
                     &key_array);
@@ -195,11 +199,13 @@ fn main() {
             match opt.is_file {
                 true => {
                     let mut contents = open_input_file(opt.input);
+                    let contents_len = contents.len();
                     let mut nonce = [0; 16]; 
                     nonce.copy_from_slice(&contents[..16]);
                     contents = contents[16..].to_vec();
                     let result = gimli_aead_decrypt(
-                    &contents,
+                    contents.into_iter().map(|x| Ok(x)),
+                    contents_len,
                     opt.ad.as_bytes(),
                     &nonce,
                     &key_array).expect("Error decypting");
@@ -216,12 +222,14 @@ fn main() {
                     }
                 }
                 false => {
-                    let mut input_bytes = opt.input.as_bytes();
+                    let mut input_bytes = opt.input.into_bytes();
                     let mut nonce = [0; 16];
                     nonce.copy_from_slice(&input_bytes[..16]);
-                    input_bytes = &input_bytes[16..];
+                    let input_len = input_bytes.len();
+                    input_bytes = input_bytes[16..].to_vec();
                     let result = gimli_aead_decrypt(
-                    input_bytes,
+                    input_bytes.into_iter().map(|x| Ok(x)),
+                    input_len,
                     opt.ad.as_bytes(),
                     &nonce,
                     &key_array).expect("Error decypting");
