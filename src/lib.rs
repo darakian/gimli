@@ -307,9 +307,11 @@ impl Iterator for GimliAeadDecryptIter{
                 self.cipher_message_len -=1;
             }
             gimli(&mut self.state);
+            return Some(self.output_buffer.remove(0))
         }
 
-        if self.cipher_message_len <= 16 {
+        if self.cipher_message_len <= 16 && self.cipher_message_len > 0 {
+            println!("c.len: {:?}, o.len: {:?}", self.cipher_message_len, self.output_buffer.len());
             for i in 0..self.cipher_message_len {
                 let current_byte = self.cipher_message.next().unwrap().expect("Read error on input");
                 self.output_buffer.push(state_8[i] ^ current_byte);
@@ -319,18 +321,18 @@ impl Iterator for GimliAeadDecryptIter{
             state_8[47] ^= 1;
             gimli(&mut self.state);
             self.cipher_message_len = 0;
-
             // Handle tag
             let mut result: u32 = 0;
             for i in 0..16 {
                 let current_byte = self.cipher_message.next().unwrap().expect("Read error on input");
-                result |= (current_byte ^ state_8[i]) as u32
+                result |= (current_byte ^ state_8[i]) as u32;
             }
             result = result.overflowing_sub(1).0;
             result = result >> 16;
-
-            for i in 0..self.output_buffer.len() {
-                self.output_buffer[i] &= result as u8; // Valid. Only the first 8 bits of result are possibly non-zero.
+            assert_ne!(result, 0);
+            match self.output_buffer.len() {
+                0 => return None,
+                _ => return Some(self.output_buffer.remove(0)),
             }
         }
         None
@@ -461,39 +463,42 @@ mod tests{
         let cipher_vectors = get_cipher_vectors();
 
         for vec in cipher_vectors.iter(){
-            let v_len = vec.0.len();
-            let v_msg = vec.0.clone().into_iter().map(|x| Ok(x));
-            let v_asd = &vec.1;
+            let pt_len = vec.0.len();
+            let pt = vec.0.clone().into_iter().map(|x| Ok(x));
+            let assoc_d = &vec.1;
+            let ct = vec.2.clone().into_iter().map(|x| Ok(x));
+            let ct_len = vec.2.len();
 
             let ge_iter = GimliAeadEncryptIter::new(
                 key,
                 nonce,
-                v_len,
-                Box::new(v_msg.clone()),
-                v_asd);
+                pt_len,
+                Box::new(pt.clone()),
+                assoc_d);
             let result: Vec<u8> = ge_iter.collect();
             assert_eq!(vec.2, result);
 
 
             assert_eq!(vec.2, gimli_aead_encrypt(
-                v_msg,
-                v_len,
-                v_asd,
+                pt.clone(),
+                pt_len,
+                assoc_d,
                 &nonce,
                 &key));
 
             let gd_iter = GimliAeadDecryptIter::new(
                 key,
                 nonce,
-                vec.2.len(),
-                Box::new(vec.2.clone().into_iter().map(|x| Ok(x))),
-                v_asd,
+                ct_len,
+                Box::new(ct.clone()),
+                assoc_d,
                 );
+            println!("Testing ct:{:?}, pt:{:?}", ct, pt);
             let pt: Vec<u8> = gd_iter.collect();
-            assert_eq!(pt, vec.0);
-            assert_eq!(vec.0, gimli_aead_decrypt(
-                vec.2.clone().into_iter().map(|x| Ok(x)),
-                vec.2.len(),
+            assert_eq!(pt, pt);
+            assert_eq!(pt, gimli_aead_decrypt(
+                ct,
+                ct_len,
                 &vec.1,
                 &nonce,
                 &key).expect("Error in test decryption"));
