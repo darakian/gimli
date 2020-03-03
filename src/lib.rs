@@ -299,7 +299,7 @@ impl Iterator for GimliAeadDecryptIter{
         let state_ptr = self.state.as_ptr() as *mut u8;
         let state_8 = unsafe {std::slice::from_raw_parts_mut(state_ptr, 48)};
 
-        if self.cipher_message_len > 16 {
+        if self.cipher_message_len >= 16 {
             for i in 0..16 {
                 let current_byte = self.cipher_message.next().unwrap().expect("Read error on input");
                 self.output_buffer.push(state_8[i] ^ current_byte);
@@ -310,8 +310,7 @@ impl Iterator for GimliAeadDecryptIter{
             return Some(self.output_buffer.remove(0))
         }
 
-        if self.cipher_message_len <= 16 && self.cipher_message_len > 0 {
-            println!("c.len: {:?}, o.len: {:?}", self.cipher_message_len, self.output_buffer.len());
+        if self.cipher_message_len <= 15 && self.cipher_message_len > 0 {
             for i in 0..self.cipher_message_len {
                 let current_byte = self.cipher_message.next().unwrap().expect("Read error on input");
                 self.output_buffer.push(state_8[i] ^ current_byte);
