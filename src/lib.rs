@@ -328,7 +328,7 @@ impl Iterator for GimliAeadDecryptIter{
             }
             result = result.overflowing_sub(1).0;
             result = result >> 16;
-            assert_ne!(result, 0);
+            assert_ne!(result, 0); // Need a better way to express an error than panic
             match self.output_buffer.len() {
                 0 => return None,
                 _ => return Some(self.output_buffer.remove(0)),
@@ -492,7 +492,6 @@ mod tests{
                 Box::new(ct.clone()),
                 assoc_d,
                 );
-            println!("Testing ct:{:?}, pt:{:?}", ct, pt);
             let pt: Vec<u8> = gd_iter.collect();
             assert_eq!(pt, pt);
             assert_eq!(pt, gimli_aead_decrypt(
