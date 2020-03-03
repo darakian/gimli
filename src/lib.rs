@@ -55,12 +55,10 @@ static RATE_IN_BYTES: u64 = 16;
 
 pub fn gimli_hash(mut input:  impl Iterator<Item = Result<u8, io::Error>>, mut input_byte_len: u64, mut output_byte_len: u64) -> Vec<u8> {
     let mut state: [u32; 12] = [0; 12];
-    let state_ptr = state.as_ptr() as *mut u8;
-    let state_8 = unsafe { std::slice::from_raw_parts_mut(state_ptr, 48) };
     let mut block_size: u64 = 0;
 
-    // === Absorb all the input blocks ===
     while input_byte_len > 0 {
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
         block_size = min(input_byte_len, RATE_IN_BYTES);
         for i in 0..block_size {
             state_8[i as usize] ^= input.next().unwrap().expect("Read error on input");
@@ -73,16 +71,14 @@ pub fn gimli_hash(mut input:  impl Iterator<Item = Result<u8, io::Error>>, mut i
         }
     }
 
-    // === Do the padding and switch to the squeezing phase ===
+    let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
     state_8[block_size as usize] ^= 0x1F;
-    // Add the second bit of padding
     state_8[(RATE_IN_BYTES - 1) as usize] ^= 0x80;
-    // Switch to the squeezing phase
-    gimli(&mut state);
+    gimli(&mut state); // Calling gimli invalidates other references to state. ie stats_8
 
-    // === Squeeze out all the output blocks ===
     let mut output: Vec<u8> = Vec::with_capacity(output_byte_len as usize);
     while output_byte_len > 0 {
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
         block_size = min(output_byte_len, RATE_IN_BYTES);
         output.extend_from_slice(&state_8[..block_size as usize]);
         output_byte_len -= block_size;
@@ -91,6 +87,100 @@ pub fn gimli_hash(mut input:  impl Iterator<Item = Result<u8, io::Error>>, mut i
         }
     }
     return output;
+}
+
+struct GimliAeadEncryptIter{
+    state: [u32; 12],
+    message_len: usize,
+    message: Box<dyn Iterator<Item = Result<u8, io::Error>>>,
+    output_buffer: Vec<u8>,
+    complete: bool,
+    last_blocksize: usize,
+}
+
+impl GimliAeadEncryptIter{
+    pub fn new(key: [u8; 32],
+               nonce: [u8; 16],
+               message_len: usize,
+               message: Box<dyn Iterator<Item = Result<u8, io::Error>>>,
+               mut associated_data: &[u8]) -> Self{
+        let mut state: [u32; 12] = [0; 12];
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
+        state_8[..16].clone_from_slice(&nonce);
+        state_8[16..48].clone_from_slice(&key);
+        gimli(&mut state);
+
+        while associated_data.len() >= 16 {
+            let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
+            for i in 0..16 {
+                state_8[i] ^= associated_data[i]
+            }
+            gimli(&mut state);
+            associated_data = &associated_data[16 as usize..];
+        }
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
+        for i in 0..associated_data.len() {
+            state_8[i] ^= associated_data[i]
+        }
+        state_8[associated_data.len() as usize] ^= 1;
+        state_8[47] ^= 1;
+        gimli(&mut state);
+
+        GimliAeadEncryptIter{
+            state: state,
+            message_len: message_len,
+            message: message,
+            output_buffer: Vec::new(),
+            complete: false,
+            last_blocksize: 0
+        }
+    }
+}
+
+impl Iterator for GimliAeadEncryptIter{
+    type Item = u8;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.output_buffer.len() > 0{
+            return Some(self.output_buffer.remove(0))
+        }
+
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(self.state.as_mut_ptr() as *mut u8, 48)};
+        if self.message_len >= 16 {
+            for i in 0..16 {
+                state_8[i] ^= self.message.next().unwrap().expect("Read error on input");
+                self.output_buffer.push(state_8[i]);
+                self.message_len -=1;
+            }
+            gimli(&mut self.state);
+            return Some(self.output_buffer.remove(0))
+        }
+
+        if self.message_len < 16 && self.message_len > 0 {
+            self.last_blocksize = self.message_len;
+            for i in 0..self.message_len {
+                let foo = self.message.next().unwrap().expect("Read error on input");
+                state_8[i] ^= foo;
+                self.output_buffer.push(state_8[i]);
+                self.message_len -=1;
+            }
+            return Some(self.output_buffer.remove(0))
+        }
+
+        if self.message_len == 0 && self.complete == false{
+            state_8[self.last_blocksize as usize] ^= 1;
+            state_8[47] ^= 1;
+            gimli(&mut self.state); 
+            let state_8 = unsafe {std::slice::from_raw_parts_mut(self.state.as_mut_ptr() as *mut u8, 48)};
+            for i in 0..16 {
+                self.output_buffer.push(state_8[i]);
+            }
+            self.complete = true;
+            return Some(self.output_buffer.remove(0))
+        }
+
+        return None
+
+    }
 }
 
 pub fn gimli_aead_encrypt(
@@ -102,8 +192,7 @@ pub fn gimli_aead_encrypt(
 ) -> Vec<u8> {
     let mut output: Vec<u8> = Vec::new();
     let mut state: [u32; 12] = [0; 12];
-    let state_ptr = state.as_ptr() as *mut u8;
-    let state_8 = unsafe { std::slice::from_raw_parts_mut(state_ptr, 48) };
+    let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
 
     // Init state with key and nonce plus first permute
     state_8[..16].clone_from_slice(nonce);
@@ -111,13 +200,14 @@ pub fn gimli_aead_encrypt(
     gimli(&mut state);
 
     while associated_data.len() >= 16 {
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
         for i in 0..16 {
             state_8[i] ^= associated_data[i]
         }
         gimli(&mut state);
         associated_data = &associated_data[16 as usize..];
     }
-
+    let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
     for i in 0..associated_data.len() {
         state_8[i] ^= associated_data[i]
     }
@@ -126,6 +216,7 @@ pub fn gimli_aead_encrypt(
     gimli(&mut state);
 
     while message_len >= 16 {
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
         for i in 0..16 {
             state_8[i] ^= message.next().unwrap().expect("Read error on input");
             output.push(state_8[i]);
@@ -134,6 +225,7 @@ pub fn gimli_aead_encrypt(
         gimli(&mut state);
     }
 
+    let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
     for i in 0..message_len {
         state_8[i] ^= message.next().unwrap().expect("Read error on input");
         output.push(state_8[i]);
@@ -141,12 +233,109 @@ pub fn gimli_aead_encrypt(
     state_8[message_len as usize] ^= 1;
     state_8[47] ^= 1;
     gimli(&mut state);
-
+    let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
     for i in 0..16 {
         output.push(state_8[i]);
     }
 
     return output;
+}
+
+struct GimliAeadDecryptIter{
+    state: [u32; 12],
+    cipher_message_len: usize,
+    cipher_message: Box<dyn Iterator<Item = Result<u8, io::Error>>>,
+    output_buffer: Vec<u8>,
+}
+
+impl GimliAeadDecryptIter{
+    pub fn new(key: [u8; 32],
+               nonce: [u8; 16],
+               cipher_text_len: usize,
+               cipher_text: Box<dyn Iterator<Item = Result<u8, io::Error>>>,
+               mut associated_data: &[u8]) -> Self{
+
+        let message_len = cipher_text_len - 16;
+        let mut state: [u32; 12] = [0; 12];
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
+
+        // Init state with key and nonce plus first permute
+        state_8[..16].clone_from_slice(&nonce);
+        state_8[16..48].clone_from_slice(&key);
+        gimli(&mut state);
+
+        // Handle associated data
+        while associated_data.len() >= 16 {
+            let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
+            for i in 0..16 {
+                state_8[i] ^= associated_data[i]
+            }
+            gimli(&mut state);
+            associated_data = &associated_data[16 as usize..];
+        }
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
+        for i in 0..associated_data.len() {
+            state_8[i] ^= associated_data[i]
+        }
+        state_8[associated_data.len() as usize] ^= 1;
+        state_8[47] ^= 1;
+        gimli(&mut state);
+
+        GimliAeadDecryptIter{
+            state: state,
+            cipher_message_len: message_len,
+            cipher_message: cipher_text,
+            output_buffer: Vec::new(),
+        }
+    }
+}
+
+impl Iterator for GimliAeadDecryptIter{
+    type Item = u8;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.output_buffer.len() > 0{
+            return Some(self.output_buffer.remove(0))
+        }
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(self.state.as_mut_ptr() as *mut u8, 48)};
+
+        if self.cipher_message_len >= 16 {
+            for i in 0..16 {
+                let current_byte = self.cipher_message.next().unwrap().expect("Read error on input");
+                self.output_buffer.push(state_8[i] ^ current_byte);
+                state_8[i] = current_byte;
+                self.cipher_message_len -=1;
+            }
+            gimli(&mut self.state);
+            return Some(self.output_buffer.remove(0))
+        }
+
+        if self.cipher_message_len <= 15 && self.cipher_message_len > 0 {
+            for i in 0..self.cipher_message_len {
+                let current_byte = self.cipher_message.next().unwrap().expect("Read error on input");
+                self.output_buffer.push(state_8[i] ^ current_byte);
+                state_8[i] = current_byte;
+            }
+            state_8[self.cipher_message_len as usize] ^= 1;
+            state_8[47] ^= 1;
+            gimli(&mut self.state);
+            let state_8 = unsafe {std::slice::from_raw_parts_mut(self.state.as_mut_ptr() as *mut u8, 48)};
+            self.cipher_message_len = 0;
+            // Handle tag
+            let mut result: u32 = 0;
+            for i in 0..16 {
+                let current_byte = self.cipher_message.next().unwrap().expect("Read error on input");
+                result |= (current_byte ^ state_8[i]) as u32;
+            }
+            result = result.overflowing_sub(1).0;
+            result = result >> 16;
+            assert_ne!(result, 0); // Need a better way to express an error than panic
+            match self.output_buffer.len() {
+                0 => return None,
+                _ => return Some(self.output_buffer.remove(0)),
+            }
+        }
+        None
+    }
 }
 
 pub fn gimli_aead_decrypt(
@@ -163,8 +352,7 @@ pub fn gimli_aead_decrypt(
     let mut cipher_message_len = cipher_text_len - 16;
     let mut output: Vec<u8> = Vec::new();
     let mut state: [u32; 12] = [0; 12];
-    let state_ptr = state.as_ptr() as *mut u8;
-    let state_8 = unsafe { std::slice::from_raw_parts_mut(state_ptr, 48) };
+    let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
 
     // Init state with key and nonce plus first permute
     state_8[..16].clone_from_slice(nonce);
@@ -173,21 +361,25 @@ pub fn gimli_aead_decrypt(
 
     // Handle associated data
     while associated_data.len() >= 16 {
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
         for i in 0..16 {
             state_8[i] ^= associated_data[i]
         }
         gimli(&mut state);
         associated_data = &associated_data[16 as usize..];
     }
+    let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
     for i in 0..associated_data.len() {
         state_8[i] ^= associated_data[i]
     }
     state_8[associated_data.len() as usize] ^= 1;
     state_8[47] ^= 1;
     gimli(&mut state);
+    
 
     // Handle cipher text
     while cipher_message_len >= 16 {
+        let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
         for j in 0..16 {
             let current_byte = cipher_text.next().unwrap().expect("Read error on input");
             output.push(state_8[j] ^ current_byte);
@@ -196,6 +388,7 @@ pub fn gimli_aead_decrypt(
         gimli(&mut state);
         cipher_message_len-=16;
     }
+    let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
 
     for i in 0..cipher_message_len {
         let current_byte = cipher_text.next().unwrap().expect("Read error on input");
@@ -205,6 +398,7 @@ pub fn gimli_aead_decrypt(
     state_8[cipher_message_len as usize] ^= 1;
     state_8[47] ^= 1;
     gimli(&mut state);
+    let state_8 = unsafe {std::slice::from_raw_parts_mut(state.as_mut_ptr() as *mut u8, 48)};
 
     // Handle tag
     let mut result: u32 = 0;
@@ -222,11 +416,6 @@ pub fn gimli_aead_decrypt(
     if result != 0 {
         return Ok(output);
     } else {
-        println!("Error with >> ");
-        for byte in output.iter() {
-            print!("{:02x?}", byte);
-        }
-        println!("");
         return Err("Invalid result tag");
     }
 }
@@ -273,24 +462,47 @@ mod tests{
         let cipher_vectors = get_cipher_vectors();
 
         for vec in cipher_vectors.iter(){
+            let pt_len = vec.0.len();
+            let pt = vec.0.clone().into_iter().map(|x| Ok(x));
+            let assoc_d = &vec.1;
+            let ct = vec.2.clone().into_iter().map(|x| Ok(x));
+            let ct_len = vec.2.len();
+
+            let ge_iter = GimliAeadEncryptIter::new(
+                key,
+                nonce,
+                pt_len,
+                Box::new(pt.clone()),
+                assoc_d);
+            let result: Vec<u8> = ge_iter.collect();
+            assert_eq!(vec.2, result);
+
+
             assert_eq!(vec.2, gimli_aead_encrypt(
-                vec.0.clone().into_iter().map(|x| Ok(x)),
-                vec.0.len(),
-                &vec.1,
+                pt.clone(),
+                pt_len,
+                assoc_d,
                 &nonce,
                 &key));
 
-            assert_eq!(vec.0, gimli_aead_decrypt(
-                vec.2.clone().into_iter().map(|x| Ok(x)),
-                vec.2.len(),
+            let gd_iter = GimliAeadDecryptIter::new(
+                key,
+                nonce,
+                ct_len,
+                Box::new(ct.clone()),
+                assoc_d,
+                );
+            let pt: Vec<u8> = gd_iter.collect();
+            assert_eq!(pt, pt);
+            assert_eq!(pt, gimli_aead_decrypt(
+                ct,
+                ct_len,
                 &vec.1,
                 &nonce,
                 &key).expect("Error in test decryption"));
         }
     }
 }
-
-
 
 
 
