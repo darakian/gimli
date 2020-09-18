@@ -1,4 +1,6 @@
-use gimli_rs::{gimli_decrypt::gimli_aead_decrypt, gimli_encrypt::gimli_aead_encrypt, gimli_hash};
+use gimli_rs::gimli_hash;
+use gimli_rs::gimli_encrypt::GimliAeadEncryptIter;
+use gimli_rs::gimli_decrypt::GimliAeadDecryptIter;
 use structopt::StructOpt;
 use structopt::clap::arg_enum;
 use std::fs::File;
@@ -149,18 +151,19 @@ fn main() {
                 true => {
                     let contents = open_input_file(opt.input);
                     let contents_len = contents.len();
-                    let result = gimli_aead_encrypt(
-                    contents.into_iter().map(|x| Ok(x)),
-                    contents_len,
-                    opt.ad.as_bytes(),
-                    &nonce,
-                    &key_array);
+                    let cipher_text = GimliAeadEncryptIter::new(
+                        key_array,
+                        nonce,
+                        contents_len,
+                        Box::new(contents.into_iter().map(|x| Ok(x))),
+                        opt.ad.as_bytes()
+                        );
                     match opt.output {
                         Some(file_path) => {
-                            write_encrypted_file(file_path, &nonce, result);
+                            write_encrypted_file(file_path, &nonce, cipher_text.into_iter());
                         },
                         None => {
-                                for byte in result.iter(){
+                                for byte in cipher_text.into_iter(){
                                     print!("{:02x?}", byte);
                                 }
                         },
@@ -168,18 +171,19 @@ fn main() {
                 }
                 false => {
                     let input_len = opt.input.as_bytes().len();
-                    let result = gimli_aead_encrypt(
-                    opt.input.into_bytes().into_iter().map(|x| Ok(x)),
-                    input_len,
-                    opt.ad.as_bytes(),
-                    &nonce,
-                    &key_array);
+                    let cipher_text = GimliAeadEncryptIter::new(
+                        key_array,
+                        nonce,
+                        input_len,
+                        Box::new(opt.input.into_bytes().into_iter().map(|x| Ok(x))),
+                        opt.ad.as_bytes()
+                        );
                     match opt.output {
                         Some(file_path) => {
-                            write_encrypted_file(file_path, &nonce, result);
+                            write_encrypted_file(file_path, &nonce, cipher_text.into_iter());
                         },
                         None => {
-                                for byte in result.iter(){
+                                for byte in cipher_text.into_iter(){
                                     print!("{:02x?}", byte);
                                 }
                         },
@@ -203,19 +207,28 @@ fn main() {
                     let mut nonce = [0; 16]; 
                     nonce.copy_from_slice(&contents[..16]);
                     contents = contents[16..].to_vec();
-                    let result = gimli_aead_decrypt(
-                    contents.into_iter().map(|x| Ok(x)),
-                    contents_len,
-                    opt.ad.as_bytes(),
-                    &nonce,
-                    &key_array).expect("Error decypting");
+                    let plain_text = GimliAeadDecryptIter::new(
+                        key_array,
+                        nonce,
+                        contents_len,
+                        Box::new(contents.into_iter().map(|x| Ok(x))),
+                        opt.ad.as_bytes()
+                        );                    
+                    // let result = gimli_aead_decrypt(
+                    // contents.into_iter().map(|x| Ok(x)),
+                    // contents_len,
+                    // opt.ad.as_bytes(),
+                    // &nonce,
+                    // &key_array).expect("Error decypting");
                     match opt.output {
                         Some(file_path) => {
                             let mut file = File::create(file_path).expect("Failed to open output file");
-                            file.write_all(&result).expect("Error writing to output file");
+                            for byte in plain_text.into_iter(){
+                                file.write_all(&[byte]).expect("Error writing to output file");
+                            }
                         },
                         None => {
-                                for byte in result.iter(){
+                                for byte in plain_text.into_iter(){
                                     print!("{:02x?}", byte);
                                 }
                         },
@@ -227,19 +240,28 @@ fn main() {
                     nonce.copy_from_slice(&input_bytes[..16]);
                     let input_len = input_bytes.len();
                     input_bytes = input_bytes[16..].to_vec();
-                    let result = gimli_aead_decrypt(
-                    input_bytes.into_iter().map(|x| Ok(x)),
-                    input_len,
-                    opt.ad.as_bytes(),
-                    &nonce,
-                    &key_array).expect("Error decypting");
+                    // let result = gimli_aead_decrypt(
+                    // input_bytes.into_iter().map(|x| Ok(x)),
+                    // input_len,
+                    // opt.ad.as_bytes(),
+                    // &nonce,
+                    // &key_array).expect("Error decypting");
+                    let plain_text = GimliAeadDecryptIter::new(
+                        key_array,
+                        nonce,
+                        input_len,
+                        Box::new(input_bytes.into_iter().map(|x| Ok(x))),
+                        opt.ad.as_bytes()
+                        );    
                     match opt.output {
                         Some(file_path) => {
                             let mut file = File::create(file_path).expect("Failed to open output file");
-                            file.write_all(&result).expect("Error writing to output file");
+                            for byte in plain_text.into_iter(){
+                                file.write_all(&[byte]).expect("Error writing to output file");
+                            }
                         },
                         None => {
-                                for byte in result.iter(){
+                                for byte in plain_text.into_iter(){
                                     print!("{:02x?}", byte);
                                 }
                         },
@@ -258,9 +280,13 @@ fn main() {
         return contents
     }
 
-    fn write_encrypted_file(path: String, nonce: &[u8; 16], ciphertext: Vec<u8>) -> (){
+    fn write_encrypted_file<T: Iterator<Item = u8>>(path: String, nonce: &[u8; 16], ciphertext: T) -> (){
         let mut file = File::create(path).expect("Failed to open output file");
         file.write_all(nonce).expect("Error writing to output file");
-        file.write_all(&ciphertext).expect("Error writing to output file");
+        for byte in ciphertext {
+            file.write(&[byte]).expect("Error writing to output file");
+            
+        }
     }
+
 }
