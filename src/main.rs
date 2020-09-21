@@ -4,7 +4,8 @@ use gimli_rs::gimli_decrypt::GimliAeadDecryptIter;
 use structopt::StructOpt;
 use structopt::clap::arg_enum;
 use std::fs::File;
-use std::io::BufReader;
+use std::fs;
+use std::io::{BufReader, BufWriter};
 use std::io::prelude::*;
 use rand::prelude::*;
 
@@ -149,13 +150,14 @@ fn main() {
             key_array.copy_from_slice(&key_hash);
             match opt.is_file {
                 true => {
-                    let contents = open_input_file(opt.input);
-                    let contents_len = contents.len();
+                    let mut input_file = File::open(&opt.input).expect("Error opening input file.");
+                    let bufreader = BufReader::new(input_file);
+                    let contents_len = fs::metadata(&opt.input).expect("Error reading metadata").len();
                     let cipher_text = GimliAeadEncryptIter::new(
                         key_array,
                         nonce,
-                        contents_len,
-                        Box::new(contents.into_iter().map(|x| Ok(x))),
+                        contents_len as usize,
+                        Box::new(bufreader.bytes()),
                         opt.ad.as_bytes()
                         );
                     match opt.output {
@@ -202,29 +204,24 @@ fn main() {
             key_array.copy_from_slice(&key_hash);
             match opt.is_file {
                 true => {
-                    let mut contents = open_input_file(opt.input);
-                    let contents_len = contents.len();
-                    let mut nonce = [0; 16]; 
-                    nonce.copy_from_slice(&contents[..16]);
-                    contents = contents[16..].to_vec();
+                    let mut input_file = File::open(&opt.input).expect("Error opening input file.");
+                    let mut bufreader = BufReader::new(input_file);
+                    let contents_len = fs::metadata(&opt.input).expect("Error reading metadata").len();
+                    let mut nonce = [0; 16];
+                    bufreader.read_exact(&mut nonce).expect("Error reading input file");
                     let plain_text = GimliAeadDecryptIter::new(
                         key_array,
                         nonce,
-                        contents_len,
-                        Box::new(contents.into_iter().map(|x| Ok(x))),
+                        contents_len as usize,
+                        Box::new(bufreader.bytes()),
                         opt.ad.as_bytes()
                         );                    
-                    // let result = gimli_aead_decrypt(
-                    // contents.into_iter().map(|x| Ok(x)),
-                    // contents_len,
-                    // opt.ad.as_bytes(),
-                    // &nonce,
-                    // &key_array).expect("Error decypting");
                     match opt.output {
                         Some(file_path) => {
                             let mut file = File::create(file_path).expect("Failed to open output file");
-                            for byte in plain_text.into_iter(){
-                                file.write_all(&[byte]).expect("Error writing to output file");
+                            let mut writer = BufWriter::new(file);
+                            for byte in plain_text {
+                                writer.write(&[byte]).expect("Error writing to output file");
                             }
                         },
                         None => {
@@ -240,12 +237,6 @@ fn main() {
                     nonce.copy_from_slice(&input_bytes[..16]);
                     let input_len = input_bytes.len();
                     input_bytes = input_bytes[16..].to_vec();
-                    // let result = gimli_aead_decrypt(
-                    // input_bytes.into_iter().map(|x| Ok(x)),
-                    // input_len,
-                    // opt.ad.as_bytes(),
-                    // &nonce,
-                    // &key_array).expect("Error decypting");
                     let plain_text = GimliAeadDecryptIter::new(
                         key_array,
                         nonce,
@@ -273,18 +264,12 @@ fn main() {
 
     }
 
-    fn open_input_file(path: String) -> Vec<u8>{
-        let mut input_file = File::open(path).expect("Error opening input file.");
-        let mut contents = vec![];
-        input_file.read_to_end(&mut contents).expect("Error reading input file.");
-        return contents
-    }
-
     fn write_encrypted_file<T: Iterator<Item = u8>>(path: String, nonce: &[u8; 16], ciphertext: T) -> (){
         let mut file = File::create(path).expect("Failed to open output file");
-        file.write_all(nonce).expect("Error writing to output file");
+        let mut writer = BufWriter::new(file);
+        writer.write_all(nonce).expect("Error writing to output file");
         for byte in ciphertext {
-            file.write(&[byte]).expect("Error writing to output file");
+            writer.write(&[byte]).expect("Error writing to output file");
             
         }
     }
