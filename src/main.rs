@@ -206,9 +206,9 @@ fn main() {
                 true => {
                     let mut input_file = File::open(&opt.input).expect("Error opening input file.");
                     let mut bufreader = BufReader::new(input_file);
-                    let contents_len = fs::metadata(&opt.input).expect("Error reading metadata").len();
                     let mut nonce = [0; 16];
                     bufreader.read_exact(&mut nonce).expect("Error reading input file");
+                    let contents_len = fs::metadata(&opt.input).expect("Error reading metadata").len() - 16;
                     let plain_text = GimliAeadDecryptIter::new(
                         key_array,
                         nonce,
@@ -265,7 +265,7 @@ fn main() {
     }
 
     fn write_encrypted_file<T: Iterator<Item = u8>>(path: String, nonce: &[u8; 16], ciphertext: T) -> (){
-        let mut file = File::create(path).expect("Failed to open output file");
+        let file = File::create(path).expect("Failed to open output file");
         let mut writer = BufWriter::new(file);
         writer.write_all(nonce).expect("Error writing to output file");
         for byte in ciphertext {
