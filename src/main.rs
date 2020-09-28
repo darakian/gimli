@@ -150,7 +150,7 @@ fn main() {
             key_array.copy_from_slice(&key_hash);
             match opt.is_file {
                 true => {
-                    let mut input_file = File::open(&opt.input).expect("Error opening input file.");
+                    let input_file = File::open(&opt.input).expect("Error opening input file.");
                     let bufreader = BufReader::new(input_file);
                     let contents_len = fs::metadata(&opt.input).expect("Error reading metadata").len();
                     let cipher_text = GimliAeadEncryptIter::new(
@@ -204,7 +204,7 @@ fn main() {
             key_array.copy_from_slice(&key_hash);
             match opt.is_file {
                 true => {
-                    let mut input_file = File::open(&opt.input).expect("Error opening input file.");
+                    let input_file = File::open(&opt.input).expect("Error opening input file.");
                     let mut bufreader = BufReader::new(input_file);
                     let mut nonce = [0; 16];
                     bufreader.read_exact(&mut nonce).expect("Error reading input file");
@@ -218,7 +218,7 @@ fn main() {
                         );                    
                     match opt.output {
                         Some(file_path) => {
-                            let mut file = File::create(file_path).expect("Failed to open output file");
+                            let file = File::create(file_path).expect("Failed to open output file");
                             let mut writer = BufWriter::new(file);
                             for byte in plain_text {
                                 writer.write(&[byte]).expect("Error writing to output file");
